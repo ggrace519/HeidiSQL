@@ -12,7 +12,8 @@ uses
   LazUTF8,
   Classes, SysUtils, fpcunit, testregistry, testutils, fpcunitreport, consoletestrunner,
   test_forkpaths, test_forkupdate, test_ai_sse, test_ai_openai, test_ai_sqlextract, test_ai_context, test_ai_prompts, test_ai_profiles,
-  test_ai_conversation_keystore, test_ai_http, test_ai_tls, test_ai_keychain;
+  test_ai_conversation_keystore, test_ai_http, test_ai_tls, test_ai_keychain,
+  test_ai_requestbuild;
 
 type
   // Prints each test's name before it runs, so a hanging test shows up in CI logs
