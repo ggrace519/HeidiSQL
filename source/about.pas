@@ -119,7 +119,8 @@ begin
   // Assign text
   Caption := f_('About %s', [APPDISPLAYNAME]);
   lblAppName.Caption := APPDISPLAYNAME;
-  lblAppVersion.Caption := _('Version') + ' ' + Mainform.AppVersion;
+  // AI Edition: own version first, then the upstream version it is based on
+  lblAppVersion.Caption := f_('Version %s, based on HeidiSQL %s', [AIEDITIONVERSION, Mainform.AppVersion]);
   lblAppCompiled.Caption := _('Compiled on:') + ' ' + DateTimeToStr(GetFileModTime(Application.ExeName)) + ' with';
   lnklblCompiler.Caption := GetCompilerVersion;
   lnklblCompiler.Hint := 'https://www.lazarus-ide.org/?utm_source='+APPNAME;

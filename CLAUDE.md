@@ -8,6 +8,9 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 - Build: `make build-gtk2` (about 5 s, output `out/gtk2/heidisql`). Also `build-qt5`, `build-qt6`.
 - Run: `./out/gtk2/heidisql`. Settings go to `~/.config/heidisql-ai/`, never to the stock
   `~/.config/heidisql/`. Use `XDG_CONFIG_HOME=<dir>` to run against a throwaway settings folder.
+- Translations in a local build: `make copy-locale` copies the .mo files to `out/locale/`, but the
+  app looks next to the executable, so also run `ln -sfn ../locale out/gtk2/locale`. Then
+  `LANG=de_DE.UTF-8 LANGUAGE=de ./out/gtk2/heidisql` starts in German.
 - No tests yet. A fpcunit test project with `make test` arrives with the first AI core units.
 
 ## Branches

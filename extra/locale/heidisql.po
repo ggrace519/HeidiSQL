@@ -6893,3 +6893,6 @@ msgstr "No AI Edition release has been published yet."
 
 msgid "Download version %s"
 msgstr "Download version %s"
+
+msgid "Version %s, based on HeidiSQL %s"
+msgstr "Version %s, based on HeidiSQL %s"

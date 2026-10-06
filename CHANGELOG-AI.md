@@ -10,7 +10,8 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 - On first start, the AI Edition offers to copy sessions, preferences, snippets, highlighters and
   query tab backups from a stock HeidiSQL on the same computer. The stock settings are left
   unchanged.
-- Window titles and the About box show "HeidiSQL AI Edition".
+- Window titles and the About box show "HeidiSQL AI Edition". The About box shows the AI Edition
+  version and the HeidiSQL version it is based on.
 
 ### Changed
 - The update check looks for AI Edition releases on GitHub (tags `ai-v<version>`) instead of
@@ -21,6 +22,8 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 ### Fixed
 - The update check reported "Updates available" and showed the release dialog without comparing
   versions. It now offers a release only when it is newer than the running version.
+- Long status messages in the update check dialog ran underneath the Cancel button instead of
+  wrapping.
 - README listed Lazarus 4.4 as the build requirement while CI builds with Lazarus 4.8.
 
 ### Infrastructure

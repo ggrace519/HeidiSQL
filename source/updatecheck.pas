@@ -58,6 +58,9 @@ begin
   btnDonate.Caption := f_('Donate to the %s project', [APPNAME]);
   Width := AppSettings.ReadInt(asUpdateCheckWindowWidth);
   Height := AppSettings.ReadInt(asUpdateCheckWindowHeight);
+  // The form file anchors the status label's right side to the Cancel button, but without akRight,
+  // so long status texts ran underneath the button instead of wrapping.
+  lblStatus.Anchors := lblStatus.Anchors + [akRight];
 end;
 
 {**
