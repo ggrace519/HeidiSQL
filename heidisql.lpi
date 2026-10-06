@@ -502,6 +502,10 @@ if TargetOS=&apos;win64&apos; then
         <Filename Value="source\ai.prompts.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit>
+      <Unit>
+        <Filename Value="source\ai.profiles.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
