@@ -24,9 +24,10 @@ The client name reported to database servers (`program_name` / `application_name
 ### First start
 
 When the AI Edition starts for the first time and finds a stock HeidiSQL's settings, it offers to
-copy them: sessions, preferences, snippets and custom highlighters. Paths inside the settings that
+copy them: sessions, preferences, snippets, custom highlighters and query tab backups. Open tabs
+stay with the stock HeidiSQL. Paths inside the settings that
 pointed to the stock folder are rewritten to the AI Edition's folder. The stock settings are not
-changed, and the offer is not repeated. To bring settings over later, use
+changed. The offer appears only once, also when declined. To bring settings over later, use
 **File > Export settings** in stock HeidiSQL and **File > Import settings** in the AI Edition.
 
 Portable mode (a `portable.lock` file next to the executable) keeps its settings next to the

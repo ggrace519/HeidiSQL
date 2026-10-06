@@ -6876,8 +6876,8 @@ msgstr "Copy settings from HeidiSQL?"
 msgid "This is the first start of %s. A standard HeidiSQL installation was found on this computer, with settings in:"
 msgstr "This is the first start of %s. A standard HeidiSQL installation was found on this computer, with settings in:"
 
-msgid "Copy its sessions, preferences and snippets into this edition? The original settings are not changed."
-msgstr "Copy its sessions, preferences and snippets into this edition? The original settings are not changed."
+msgid "Copy its sessions, preferences, snippets and query backups into this edition? The original settings are not changed."
+msgstr "Copy its sessions, preferences, snippets and query backups into this edition? The original settings are not changed."
 
 msgid "Copying settings failed: %s"
 msgstr "Copying settings failed: %s"

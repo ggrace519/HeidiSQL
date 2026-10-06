@@ -114,9 +114,8 @@ begin
   try
     Http.TimeOut := 5;
     Http.AddHeader('Accept', 'application/vnd.github+json');
+    // Raises EHTTPClient on any status other than 200
     ReleasesJson := Http.Get(FORKRELEASESAPI);
-    if Http.ResponseStatusCode <> 200 then
-      raise Exception.CreateFmt(_('Got HTTP status %d from %s'), [Http.ResponseStatusCode, FORKRELEASESAPI]);
   finally
     Http.Free;
   end;

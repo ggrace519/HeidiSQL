@@ -7,8 +7,9 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 ### Added
 - The AI Edition keeps its settings in its own folder (`heidisql-ai`), so it can run next to a
   stock HeidiSQL without the two overwriting each other's sessions, tabs and backups.
-- On first start, the AI Edition offers to copy sessions, preferences, snippets and highlighters
-  from a stock HeidiSQL on the same computer. The stock settings are left unchanged.
+- On first start, the AI Edition offers to copy sessions, preferences, snippets, highlighters and
+  query tab backups from a stock HeidiSQL on the same computer. The stock settings are left
+  unchanged.
 - Window titles and the About box show "HeidiSQL AI Edition".
 
 ### Changed

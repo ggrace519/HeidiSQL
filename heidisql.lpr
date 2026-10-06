@@ -97,7 +97,10 @@ begin
   // AI Edition: offer to take over sessions and preferences from a stock HeidiSQL, once
   if CopyStockSettings and OfferStockSettingsCopy then begin
     InitLanguage;
+    // The current color scheme was loaded from the settings of the first start
+    AppColorSchemes.First.LoadFromSettings;
     SyncColorSchemeToTheme;
+    // On Windows, the dark/light app mode was already chosen above and follows on the next start
   end;
 
   {$if defined(LINUX) and (defined(LCLQt5) or defined(LCLQt6))}

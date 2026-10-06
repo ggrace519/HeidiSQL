@@ -22,12 +22,15 @@ type
   end;
 
 // Returns the highest-versioned published release whose tag starts with TagPrefix.
-// Drafts and prereleases are skipped. Raises EJSONParserException / EJSON on invalid JSON.
+// Drafts, prereleases and tags with a non-numeric version (e.g. "ai-v1.0.0-rc1") are skipped.
+// Raises EJSONParserException / EJSON on invalid JSON.
 function FindLatestForkRelease(const ReleasesJson, TagPrefix: String): TForkRelease;
 // Compares dotted numeric versions like "0.10.1" and "0.9". Missing parts count as 0,
 // non-numeric parts as 0. Result <0, 0 or >0, like CompareStr.
 function CompareVersions(const A, B: String): Integer;
 function IsNewerVersion(const Candidate, Current: String): Boolean;
+// True for dotted numeric versions like "0.2" or "1.10.3"
+function IsPlainVersion(const Version: String): Boolean;
 
 implementation
 
@@ -66,6 +69,17 @@ begin
   Result := CompareVersions(Candidate, Current) > 0;
 end;
 
+function IsPlainVersion(const Version: String): Boolean;
+var
+  Part: String;
+begin
+  Result := Version <> '';
+  for Part in Version.Split(['.']) do begin
+    if (Part = '') or (StrToInt64Def(Part, -1) < 0) then
+      Exit(False);
+  end;
+end;
+
 function FindLatestForkRelease(const ReleasesJson, TagPrefix: String): TForkRelease;
 var
   Data: TJSONData;
@@ -90,6 +104,8 @@ begin
       if (TagPrefix = '') or (not Tag.StartsWith(TagPrefix)) then
         Continue;
       Version := Copy(Tag, Length(TagPrefix)+1, MaxInt);
+      if not IsPlainVersion(Version) then
+        Continue;
       if Result.Found and (not IsNewerVersion(Version, Result.Version)) then
         Continue;
       Result.Found := True;

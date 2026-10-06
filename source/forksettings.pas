@@ -23,8 +23,9 @@ uses
 
 const
   SETTINGSFILE = 'settings.json';
-  // Folders with user content, also referenced by absolute paths inside settings.json
-  COPYFOLDERS: array[0..1] of String = ('Snippets', 'Highlighters');
+  // Folders with user content, also referenced by absolute paths inside settings.json,
+  // e.g. recent query files in Backups. tabs.ini is not copied: open tabs stay with the stock app.
+  COPYFOLDERS: array[0..2] of String = ('Snippets', 'Highlighters', 'Backups');
 
 function StockSettingsCopyPending: Boolean;
 begin
@@ -32,28 +33,49 @@ begin
     and FileExists(StockConfigDir + SETTINGSFILE);
 end;
 
+function ReadFileBytes(const Filename: String): RawByteString;
+var
+  Stream: TFileStream;
+begin
+  Stream := TFileStream.Create(Filename, fmOpenRead or fmShareDenyNone);
+  try
+    SetLength(Result, Stream.Size);
+    if Length(Result) > 0 then
+      Stream.ReadBuffer(Result[1], Length(Result));
+  finally
+    Stream.Free;
+  end;
+end;
+
+procedure WriteFileBytes(const Filename: String; const Content: RawByteString);
+var
+  Stream: TFileStream;
+begin
+  Stream := TFileStream.Create(Filename, fmCreate);
+  try
+    if Length(Content) > 0 then
+      Stream.WriteBuffer(Content[1], Length(Content));
+  finally
+    Stream.Free;
+  end;
+end;
+
 procedure CopyStockSettings(const StockDir, ForkDir: String);
 var
-  Json: TStringList;
   Folder: String;
 begin
   for Folder in COPYFOLDERS do begin
     if DirectoryExists(StockDir + Folder) then
       CopyDirTree(StockDir + Folder, ForkDir + Folder, [cffOverwriteFile, cffCreateDestDirectory]);
   end;
-  Json := TStringList.Create;
-  try
-    Json.LoadFromFile(StockDir + SETTINGSFILE);
-    Json.Text := RewriteConfigDirPaths(Json.Text, StockDir, ForkDir);
-    Json.SaveToFile(ForkDir + SETTINGSFILE);
-  finally
-    Json.Free;
-  end;
+  // Byte-exact copy apart from the rewritten folder paths: no line ending or encoding changes
+  WriteFileBytes(ForkDir + SETTINGSFILE,
+    RewriteConfigDirPaths(ReadFileBytes(StockDir + SETTINGSFILE), StockDir, ForkDir));
 end;
 
 function OfferStockSettingsCopy: Boolean;
 var
-  StockDir, ForkDir: String;
+  StockDir, ForkDir, ErrorMessage: String;
 begin
   Result := False;
   // Portable mode keeps its settings next to the executable, unrelated to any installation
@@ -65,23 +87,24 @@ begin
     _('Copy settings from HeidiSQL?'),
     f_('This is the first start of %s. A standard HeidiSQL installation was found on this computer, with settings in:', [APPDISPLAYNAME])
       + sLineBreak + StockDir + sLineBreak + sLineBreak
-      + _('Copy its sessions, preferences and snippets into this edition? The original settings are not changed.'),
+      + _('Copy its sessions, preferences, snippets and query backups into this edition? The original settings are not changed.'),
     mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
     Exit;
 
   // Release the settings file of the first start, so the copy can replace it
   FreeAndNil(AppSettings);
+  ErrorMessage := '';
   try
-    try
-      CopyStockSettings(StockDir, ForkDir);
-      Result := True;
-    except
-      on E:Exception do
-        MessageDlg(f_('Copying settings failed: %s', [E.Message]), mtError, [mbOK], 0);
-    end;
-  finally
-    AppSettings := TAppSettings.Create;
+    CopyStockSettings(StockDir, ForkDir);
+    Result := True;
+  except
+    on E:Exception do
+      ErrorMessage := E.Message;
   end;
+  // Recreate before showing any dialog, so nothing runs while AppSettings is nil
+  AppSettings := TAppSettings.Create;
+  if ErrorMessage <> '' then
+    MessageDlg(f_('Copying settings failed: %s', [ErrorMessage]), mtError, [mbOK], 0);
 end;
 
 end.
