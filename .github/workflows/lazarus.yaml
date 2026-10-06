@@ -82,8 +82,12 @@ jobs:
           timeout-minutes: 10
           if: ${{ matrix.operating-system == 'windows-latest' }}
           shell: pwsh
-          # make has no POSIX shell here to find lazbuild, so the Lazarus folder is passed in
-          run: make test "LAZDIR=${env:RUNNER_TEMP}/lazarus/"
+          # make has no POSIX shell here to find lazbuild, so the Lazarus folder is passed in.
+          # The OpenSSL DLLs, shipped next to heidisql.exe, are also needed next to the tests.
+          run: |
+            New-Item -ItemType Directory -Force out\tests | Out-Null
+            Copy-Item extra\dll\libssl-*.dll, extra\dll\libcrypto-*.dll out\tests\
+            make test "LAZDIR=${env:RUNNER_TEMP}/lazarus/"
 
         - name: Verify PE flags (Windows)
           if: ${{ matrix.operating-system == 'windows-latest' }}

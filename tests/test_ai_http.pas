@@ -237,8 +237,14 @@ var
 begin
   M := NewAiMailbox;
   Took := Run(Spec, M);
-  AssertTrue('kind', M.ErrorKind = ekConnect);
+  {$IFDEF WINDOWS}
+  // Windows retries a refused loopback connection for about 2 s, so the connect timeout
+  // (3 s here) can be reached first
+  AssertTrue('kind ' + IntToStr(Ord(M.ErrorKind)), M.ErrorKind in [ekConnect, ekTimeout]);
+  {$ELSE}
+  AssertTrue('kind ' + IntToStr(Ord(M.ErrorKind)), M.ErrorKind = ekConnect);
   AssertTrue('fast: ' + IntToStr(Took) + ' ms', Took < 2000);
+  {$ENDIF}
 end;
 
 procedure TAiHttpTest.SilentServerTimesOut;

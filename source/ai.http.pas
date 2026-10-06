@@ -75,6 +75,7 @@ implementation
 
 uses
   {$IFDEF UNIX} BaseUnix, {$ENDIF}
+  {$IFDEF WINDOWS} Windows, dynlibs, {$ENDIF}
   fphttpclient, opensslsockets, ssockets, sockets, ai.sse, ai.openai, ai.tls;
 
 const
@@ -440,15 +441,30 @@ begin
   inherited;
 end;
 
+{$IFDEF WINDOWS}
+type
+  TCancelIoEx = function(hFile: THandle; lpOverlapped: Pointer): LongBool; stdcall;
+var
+  CancelIoExFunc: TCancelIoEx = nil;
+{$ENDIF}
+
 procedure TAiHttpClient.ShutdownSocket;
 begin
   FHandlerLock.Enter;
   try
-    // A raw shutdown of the file descriptor wakes a blocked recv or SSL_read. Not
+    // A raw shutdown of the file descriptor wakes a blocked recv or SSL_read on Unix. Not
     // TSocketHandler.Shutdown, which for TLS would call SSL_shutdown concurrently with the
     // worker's SSL_read on the same connection.
-    if Assigned(FHandler) and Assigned(FHandler.Socket) then
+    if Assigned(FHandler) and Assigned(FHandler.Socket) then begin
       fpShutdown(FHandler.Socket.Handle, SHUTDOWN_BOTH);
+      {$IFDEF WINDOWS}
+      // On Windows shutdown does not wake a blocked recv: cancel the pending I/O on the socket
+      // handle instead. Closing the socket would let Windows reuse the handle value for another
+      // socket, which the worker would then close.
+      if Assigned(CancelIoExFunc) then
+        CancelIoExFunc(FHandler.Socket.Handle, nil);
+      {$ENDIF}
+    end;
   finally
     FHandlerLock.Leave;
   end;
@@ -716,6 +732,10 @@ begin
   TAiStreamWorker.Create(Spec, Mailbox);
 end;
 
+{$IFDEF WINDOWS}
+initialization
+  CancelIoExFunc := TCancelIoEx(GetProcedureAddress(GetModuleHandle('kernel32.dll'), 'CancelIoEx'));
+{$ENDIF}
 {$IFDEF UNIX}
 initialization
   // After a cancel shuts a TLS socket down, closing the connection makes OpenSSL write a
