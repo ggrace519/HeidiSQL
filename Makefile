@@ -33,7 +33,7 @@ endif
 
 VERSION := $(shell echo $(tag) | sed "s/v//")
 
-.PHONY: all clean test copy-locale build-mo build-win64 run-win64 build-gtk2 run-gtk2 build-qt5 run-qt5 build-qt6 run-qt6 build-macos deb-package tar-gtk2 tar-qt5 tar-qt6
+.PHONY: all clean test smoke copy-locale build-mo build-win64 run-win64 build-gtk2 run-gtk2 build-qt5 run-qt5 build-qt6 run-qt6 build-macos deb-package tar-gtk2 tar-qt5 tar-qt6
 
 all: clean build-win64 build-gtk2 build-qt5 build-qt6 build-macos deb-package tar-gtk2 tar-qt5 tar-qt6
 
@@ -49,6 +49,11 @@ test:
 	@mkdir -p ./out/tests ./bin/tests
 	fpc -B -Mdelphi -Sh -Fu./source -Fi./source -Fu./tests -Fu$(LAZUTILS) -FU./bin/tests -FE./out/tests ./tests/heidisql_tests.lpr
 	./out/tests/heidisql_tests --all --format=plain
+
+# Manual tool to try ai.http against a real server, see tests/ai_smoke.lpr
+smoke:
+	@mkdir -p ./out/tests ./bin/tests
+	fpc -B -Mdelphi -Sh -Fu./source -Fi./source -Fu./tests -Fu$(LAZUTILS) -FU./bin/tests -FE./out/tests ./tests/ai_smoke.lpr
 
 copy-locale:
 	@echo "=== Copying .mo from extra/locale to out/locale"
