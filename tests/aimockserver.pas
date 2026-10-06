@@ -20,6 +20,7 @@ type
   TMockHttpServer = class(TThread)
   private
     FListenSocket: TSocket;
+    FClientSocket: TSocket; // Connection being served, -1 if none; shut down by Stop
     FPort: Word;
     FResponse: TMockResponse;
     FLastRequest: RawByteString;
@@ -79,8 +80,10 @@ begin
   Addr.sin_family := AF_INET;
   Addr.sin_port := 0;
   Addr.sin_addr := StrToNetAddr('127.0.0.1');
-  if fpBind(Result, @Addr, SizeOf(Addr)) <> 0 then
+  if fpBind(Result, @Addr, SizeOf(Addr)) <> 0 then begin
+    CloseSocket(Result);
     raise Exception.Create('bind failed');
+  end;
   Len := SizeOf(Addr);
   fpGetSockName(Result, @Addr, @Len);
   Port := NToHs(Addr.sin_port);
@@ -100,8 +103,12 @@ begin
   FResponse := Response;
   FLock := TCriticalSection.Create;
   FStopEvent := TEvent.Create(nil, True, False, '');
+  FClientSocket := -1;
   FListenSocket := BindLoopback(FPort);
-  fpListen(FListenSocket, 5);
+  if fpListen(FListenSocket, 5) <> 0 then begin
+    CloseSocket(FListenSocket);
+    raise Exception.Create('listen failed');
+  end;
   FreeOnTerminate := False;
   inherited Create(False);
 end;
@@ -117,10 +124,19 @@ end;
 
 procedure TMockHttpServer.Stop;
 begin
+  if FStopEvent.WaitFor(0) = wrSignaled then
+    Exit;
   FStopEvent.SetEvent;
   Terminate;
+  // Wakes a blocked accept, and a read on a connection whose client never sends a request
   fpShutdown(FListenSocket, 2);
-  CloseSocket(FListenSocket);
+  FLock.Enter;
+  try
+    if FClientSocket >= 0 then
+      fpShutdown(FClientSocket, 2);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 function TMockHttpServer.GetLastRequest: RawByteString;
@@ -171,8 +187,17 @@ var
 begin
   while not Terminated do begin
     Client := fpAccept(FListenSocket, nil, nil);
-    if (Client < 0) or Terminated then
+    if (Client < 0) or Terminated then begin
+      if Client >= 0 then
+        CloseSocket(Client);
       Break;
+    end;
+    FLock.Enter;
+    try
+      FClientSocket := Client;
+    finally
+      FLock.Leave;
+    end;
     try
       Request := ReadRequest(Client);
       FLock.Enter;
@@ -194,10 +219,17 @@ begin
         end;
       end;
     finally
+      FLock.Enter;
+      try
+        FClientSocket := -1;
+      finally
+        FLock.Leave;
+      end;
       fpShutdown(Client, 2);
       CloseSocket(Client);
     end;
   end;
+  CloseSocket(FListenSocket);
 end;
 
 end.

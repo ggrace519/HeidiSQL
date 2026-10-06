@@ -36,6 +36,11 @@ type
     procedure SilentServerTimesOut;
     procedure CancelWakesBlockedRead;
     procedure CancelBeforeStart;
+    procedure ServerClosesWithoutAnswer;
+    procedure RedirectIsNotFollowed;
+    procedure EmptyAnswer;
+    procedure TooLargeBufferedBody;
+    procedure CancelFinishesImmediately;
   end;
 
 implementation
@@ -292,6 +297,78 @@ begin
   M.Cancel;
   Run(Spec(rmChatStream, 60000), M, 3000);
   AssertTrue(M.ErrorKind = ekCancelled);
+end;
+
+procedure TAiHttpTest.ServerClosesWithoutAnswer;
+var
+  M: IAiMailbox;
+begin
+  StartServer(MockResponse([]));
+  M := NewAiMailbox;
+  Run(Spec, M);
+  AssertTrue('kind ' + IntToStr(Ord(M.ErrorKind)), M.ErrorKind = ekConnect);
+  AssertEquals(0, M.HttpStatus);
+  AssertTrue(Pos('without an answer', M.ErrorMessage) > 0);
+end;
+
+procedure TAiHttpTest.RedirectIsNotFollowed;
+var
+  M: IAiMailbox;
+begin
+  StartServer(MockResponse(['HTTP/1.1 308 Permanent Redirect'#13#10'Location: https://other.example/v1/chat/completions'#13#10 +
+    'Content-Length: 0'#13#10'Connection: close'#13#10#13#10]));
+  M := NewAiMailbox;
+  Run(Spec, M);
+  AssertTrue(M.ErrorKind = ekNotFound);
+  AssertEquals(308, M.HttpStatus);
+  AssertTrue('names target', Pos('https://other.example/v1/chat/completions', M.ErrorMessage) > 0);
+  AssertTrue('only one request sent', Pos('POST', FServer.LastRequest) = 1);
+end;
+
+procedure TAiHttpTest.EmptyAnswer;
+var
+  M: IAiMailbox;
+begin
+  StartServer(MockResponse([HttpHead(200, 'application/json', 0)]));
+  M := NewAiMailbox;
+  Run(Spec, M);
+  AssertTrue(M.ErrorKind = ekProtocol);
+  AssertTrue(Pos('empty answer', M.ErrorMessage) > 0);
+end;
+
+procedure TAiHttpTest.TooLargeBufferedBody;
+var
+  M: IAiMailbox;
+  Big: RawByteString;
+  S: TAiRequestSpec;
+begin
+  Big := StringOfChar('x', 5 * 1024 * 1024);
+  StartServer(MockResponse([HttpHead(200, 'application/json', Length(Big)), Big]));
+  M := NewAiMailbox;
+  S := Spec(rmBuffer);
+  S.Method := 'GET';
+  S.Body := '';
+  Run(S, M);
+  AssertTrue('no silent truncation', M.ErrorKind = ekProtocol);
+  AssertEquals('', M.Body);
+end;
+
+procedure TAiHttpTest.CancelFinishesImmediately;
+var
+  M: IAiMailbox;
+  R: TMockResponse;
+begin
+  R := Default(TMockResponse);
+  R.Silent := True;
+  StartServer(R);
+  M := NewAiMailbox;
+  StartAiRequest(Spec(rmChatStream, 60000), M);
+  Sleep(200);
+  M.Cancel;
+  // Finished at once, even before the worker noticed, e.g. when stuck in a DNS lookup
+  AssertTrue(M.Finished);
+  AssertTrue(M.ErrorKind = ekCancelled);
+  AssertTrue('worker still ends', M.WaitWorkerDone(2000));
 end;
 
 initialization

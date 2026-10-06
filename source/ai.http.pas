@@ -116,6 +116,7 @@ type
   private
     FHandlerLock: TCriticalSection;
     FHandler: TSocketHandler;
+    FAbortRequested: Boolean;
     procedure ShutdownSocket;
   protected
     function GetSocketHandler(const UseSSL: Boolean): TSocketHandler; override;
@@ -146,6 +147,7 @@ type
     FClient: TAiHttpClient;
     FParser: TSseParser;
     FDecided: Boolean;       // Response mode chosen, on the first body bytes
+    FBodyTooLarge: Boolean;
     FStreaming: Boolean;     // Response is text/event-stream with status 2xx
     FBuffer: String;         // Body of non-streamed responses
     FLastDataTick: QWord;
@@ -155,6 +157,7 @@ type
     procedure SseEvent(const EventName, Data: String);
     procedure DataReceived(const Buffer; Count: Integer);
     procedure FinishResponse;
+    function TransportFailureKind: TAiErrorKind;
     function ClassifyException(E: Exception): TAiErrorKind;
   protected
     procedure Execute; override;
@@ -238,18 +241,15 @@ begin
 end;
 
 procedure TAiMailbox.AttachAbort(Proc: TAiAbortProc);
-var
-  AbortNow: Boolean;
 begin
   FLock.Enter;
   try
     FAbort := Proc;
-    AbortNow := FCancelled;
+    if FCancelled then
+      Proc;
   finally
     FLock.Leave;
   end;
-  if AbortNow then
-    Proc;
 end;
 
 procedure TAiMailbox.DetachAbort;
@@ -347,19 +347,23 @@ begin
 end;
 
 procedure TAiMailbox.Cancel;
-var
-  Abort: TAiAbortProc;
 begin
   FLock.Enter;
   try
     FCancelled := True;
-    Abort := FAbort;
+    // Called under the mailbox lock: DetachAbort waits for it, so the worker cannot free the
+    // client while Abort runs. Abort only takes the client's own lock, never this one.
+    if Assigned(FAbort) then
+      FAbort;
+    // Finished right away, also when the worker is stuck where a socket shutdown cannot reach
+    // it, such as a DNS lookup. The worker's later Finish is ignored.
+    if not FFinished then begin
+      FErrorKind := ekCancelled;
+      FFinished := True;
+    end;
   finally
     FLock.Leave;
   end;
-  // Called outside the mailbox lock; the client guards its socket with its own lock
-  if Assigned(Abort) then
-    Abort;
 end;
 
 function TAiMailbox.WaitWorkerDone(TimeoutMs: Cardinal): Boolean;
@@ -431,15 +435,31 @@ end;
 
 procedure TAiHttpClient.ConnectToServer(const AHost: String; APort: Integer; UseSSL: Boolean = False);
 begin
-  inherited;
+  try
+    inherited;
+  except
+    // On failure the base class frees the socket, and the handler with it, without calling
+    // DisconnectFromServer: forget the handler before anyone can use it
+    FHandlerLock.Enter;
+    try
+      FHandler := nil;
+    finally
+      FHandlerLock.Leave;
+    end;
+    raise;
+  end;
   // A cancel that came while connecting found no socket to shut down; the header read that
-  // follows would block until the read timeout
-  if Terminated then
+  // follows would block until the read timeout. HTTPMethod resets Terminated on entry, so the
+  // cancel is remembered in FAbortRequested.
+  if FAbortRequested then begin
+    Terminate;
     ShutdownSocket;
+  end;
 end;
 
 procedure TAiHttpClient.Abort;
 begin
+  FAbortRequested := True;
   Terminate;
   ShutdownSocket;
 end;
@@ -514,7 +534,9 @@ begin
   end;
   if FStreaming then
     FParser.Feed(Buffer, Count)
-  else if Length(FBuffer) < MAXBUFFEREDBODY then begin
+  else if Length(FBuffer) + Count > MAXBUFFEREDBODY then
+    FBodyTooLarge := True
+  else begin
     SetLength(Chunk, Count);
     if Count > 0 then
       Move(Buffer, Chunk[1], Count);
@@ -530,6 +552,22 @@ var
   Usage: TAiUsage;
 begin
   Status := FClient.ResponseStatusCode;
+  if Status <= 0 then begin
+    // No status line: the server closed without answering, or (with TLS) the read timed out,
+    // which the TLS socket handler reports like a clean end of data
+    FMailbox.Finish(TransportFailureKind, 0, 'The server closed the connection without an answer.');
+    Exit;
+  end;
+  if FBodyTooLarge then begin
+    FMailbox.Finish(ekProtocol, Status, Format('The response is larger than %d MB.', [MAXBUFFEREDBODY div (1024*1024)]));
+    Exit;
+  end;
+  if (Status >= 300) and (Status < 400) then begin
+    // Not followed: a redirect to another host would receive the API key
+    FMailbox.Finish(ekNotFound, Status, Format('The server redirects to %s. Use that address as the base URL.',
+      [FClient.GetHeader(FClient.ResponseHeaders, 'Location')]));
+    Exit;
+  end;
   Kind := ErrorKindFromStatus(Status);
   if Kind <> ekNone then begin
     FMailbox.Finish(Kind, Status, ExtractErrorMessage(FBuffer));
@@ -550,6 +588,10 @@ begin
       FMailbox.Finish(ekNone, Status, '');
     Exit;
   end;
+  if FBuffer = '' then begin
+    FMailbox.Finish(ekProtocol, Status, 'The server sent an empty answer.');
+    Exit;
+  end;
   // 2xx without event stream: the server ignored "stream" and sent the whole answer
   if DecodeCompletion(FBuffer, Content, Reasoning, Usage) then begin
     FMailbox.PushReasoning(Reasoning);
@@ -560,19 +602,26 @@ begin
     FMailbox.Finish(ekProtocol, Status, ExtractErrorMessage(FBuffer));
 end;
 
+function TAiStreamWorker.TransportFailureKind: TAiErrorKind;
+begin
+  // Read and write timeouts surface as generic socket or stream errors: a failure after the
+  // full timeout of silence is the timeout
+  if (FSpec.IoTimeoutMs > 0)
+    and (GetTickCount64 - FLastDataTick >= QWord(FSpec.IoTimeoutMs) * 9 div 10) then
+    Result := ekTimeout
+  else
+    Result := ekConnect;
+end;
+
 function TAiStreamWorker.ClassifyException(E: Exception): TAiErrorKind;
 begin
   if E is ESocketError then begin
     case ESocketError(E).Code of
       seConnectTimeOut, seIOTimeOut: Result := ekTimeout;
-      else Result := ekConnect;
+      else Result := TransportFailureKind;
     end;
-  end else if (E is EHTTPClient) and (FSpec.IoTimeoutMs > 0)
-    and (GetTickCount64 - FLastDataTick >= QWord(FSpec.IoTimeoutMs) * 9 div 10) then
-    // A read failing after the full timeout of silence is the receive timeout
-    Result := ekTimeout
-  else if E is EHTTPClient then
-    Result := ekConnect
+  end else if (E is EHTTPClient) or (E is EStreamError) then
+    Result := TransportFailureKind
   else
     Result := ekProtocol;
 end;
@@ -582,12 +631,17 @@ var
   Sink: TAiResponseSink;
   Header: String;
 begin
-  FParser := TSseParser.Create(SseEvent);
-  Sink := TAiResponseSink.Create;
-  Sink.FWorker := Self;
-  FClient := TAiHttpClient.Create(nil);
+  Sink := nil;
   try
     try
+      // Created inside the try, so a failure still finishes the mailbox and frees what exists
+      FParser := TSseParser.Create(SseEvent);
+      Sink := TAiResponseSink.Create;
+      Sink.FWorker := Self;
+      FClient := TAiHttpClient.Create(nil);
+      // ssockets counts connect timeouts in whole seconds: below 1000 ms it would be 0 s
+      if (FSpec.ConnectTimeoutMs > 0) and (FSpec.ConnectTimeoutMs < 1000) then
+        FSpec.ConnectTimeoutMs := 1000;
       FClient.ConnectTimeout := FSpec.ConnectTimeoutMs;
       FClient.IOTimeout := FSpec.IoTimeoutMs;
       FClient.OnHeaders := HeadersReceived;
@@ -613,9 +667,11 @@ begin
       end;
     end;
   finally
-    FClient.RequestBody.Free;
-    FClient.RequestBody := nil;
-    FClient.Free;
+    if Assigned(FClient) then begin
+      FClient.RequestBody.Free;
+      FClient.RequestBody := nil;
+      FClient.Free;
+    end;
     Sink.Free;
     FParser.Free;
     // Keep this last: after it, the main thread may stop waiting for this thread
@@ -628,5 +684,13 @@ procedure StartAiRequest(const Spec: TAiRequestSpec; const Mailbox: IAiMailbox);
 begin
   TAiStreamWorker.Create(Spec, Mailbox);
 end;
+
+{$IFDEF UNIX}
+initialization
+  // After a cancel shuts a TLS socket down, closing the connection makes OpenSSL write a
+  // close_notify to it. Writing to a shut-down socket raises SIGPIPE, whose default action ends
+  // the process; ssockets sends without MSG_NOSIGNAL. With SIGPIPE ignored, the write just fails.
+  fpSignal(SIGPIPE, SignalHandler(SIG_IGN));
+{$ENDIF}
 
 end.
