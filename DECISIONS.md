@@ -60,3 +60,21 @@ service. `ai-v` tags keep fork releases apart from upstream `v12.x` tags mirrore
   approval.
 - **No execution:** generated SQL is never executed automatically. It is inserted into the
   editor only on request, and data-changing statements are flagged.
+
+## ADR-006: Layered AI units, context budget and prompt order
+**Date:** 2026-10-05 · **Status:** accepted
+
+- **Layering:** wire format, prompts, schema formatting, profiles, conversation and key lookup
+  are LCL-free units (`ai.*`) with fpcunit tests. Networking, database access and UI are
+  separate units that only pass plain records and strings to them.
+- **Context budget:** the default is 8000 characters per request. DDL-like schema text was
+  measured at about 2 characters per token on a local model (not the usual 4), so this is about
+  4k tokens and fits the default context window of small local models. Profiles can raise it.
+- **Prompt order:** rules, dialect, the user's notes and the schema form a stable system
+  message, followed by history, with the new question last. Servers with prefix caching reuse
+  the processed prefix: a repeated 2.4k-token prompt took 2 s instead of 36 s.
+- **Prompt wording is tested against a real model**, not only for structure. Two wordings that
+  failed with a 7B model (fix-error echoing the failing SQL, optimize returning it unchanged)
+  were replaced by ones that put the instruction after the SQL and name common rewrites.
+- **Timeouts:** the default read timeout is 300 s, as an uncached local prompt of 2.4k tokens
+  took 36 s before the first token.
