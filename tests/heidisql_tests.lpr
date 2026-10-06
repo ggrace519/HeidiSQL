@@ -8,7 +8,7 @@ program heidisql_tests;
 uses
   {$IFDEF UNIX} cthreads, {$ENDIF}
   Classes, consoletestrunner,
-  test_forkpaths, test_forkupdate;
+  test_forkpaths, test_forkupdate, test_ai_sse;
 
 var
   App: TTestRunner;
