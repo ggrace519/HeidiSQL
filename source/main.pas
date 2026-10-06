@@ -2238,7 +2238,7 @@ begin
   btnDonate.Visible := HasDonated(True) <> nbTrue;
 
   // Call user statistics if checked in settings
-  if AppSettings.ReadBool(asDoUsageStatistics) then begin
+  if REPORTUSAGESTATISTICS and AppSettings.ReadBool(asDoUsageStatistics) then begin
     LastStatsCall := StrToDateTimeDef(AppSettings.ReadString(asLastUsageStatisticCall), DateTimeNever);
     if DaysBetween(Now, LastStatsCall) >= 30 then begin
       // Report used app version, bits.

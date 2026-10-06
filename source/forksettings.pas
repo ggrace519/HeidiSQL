@@ -21,8 +21,6 @@ implementation
 uses
   SysUtils, Classes, Controls, Dialogs, FileUtil, apphelpers, forkpaths;
 
-{$I const.inc}
-
 const
   SETTINGSFILE = 'settings.json';
   // Folders with user content, also referenced by absolute paths inside settings.json

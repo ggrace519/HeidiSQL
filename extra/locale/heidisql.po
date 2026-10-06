@@ -6881,3 +6881,15 @@ msgstr "Copy its sessions, preferences and snippets into this edition? The origi
 
 msgid "Copying settings failed: %s"
 msgstr "Copying settings failed: %s"
+
+msgid "Downloading release list"
+msgstr "Downloading release list"
+
+msgid "AI Edition release"
+msgstr "AI Edition release"
+
+msgid "No AI Edition release has been published yet."
+msgstr "No AI Edition release has been published yet."
+
+msgid "Download version %s"
+msgstr "Download version %s"
