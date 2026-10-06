@@ -13,8 +13,6 @@ uses
   SysUtils, ai.types;
 
 type
-  TAiTask = (atGenerate, atExplain, atOptimize, atFixError);
-
   TAiPromptInput = record
     Task: TAiTask;
     Dialect: String;        // e.g. "MySQL 8.0.35", "PostgreSQL 16.2", "SQLite 3.45.1"

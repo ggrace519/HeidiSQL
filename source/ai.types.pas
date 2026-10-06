@@ -7,6 +7,8 @@ unit ai.types;
 interface
 
 type
+  TAiTask = (atGenerate, atExplain, atOptimize, atFixError);
+
   TAiChatRole = (crSystem, crUser, crAssistant);
 
   TAiChatMessage = record

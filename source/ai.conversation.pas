@@ -1,19 +1,23 @@
 unit ai.conversation;
 
 // Conversation of one query tab with the assistant: the turns shown in the panel, and the
-// history sent along with the next request. No LCL dependencies.
+// history sent along with the next request. Turns are addressed by an id that is never reused,
+// so late data of a cancelled or cleared request cannot end up in a newer turn.
+// Not thread-safe: only the main thread uses it; the HTTP worker hands data over through the
+// controller. No LCL dependencies.
 
 {$mode delphi}{$H+}
 
 interface
 
 uses
-  SysUtils, ai.types, ai.prompts;
+  SysUtils, ai.types;
 
 type
   TAiTurnState = (tsStreaming, tsDone, tsFailed, tsCancelled);
 
   TAiTurn = record
+    Id: Integer;
     Task: TAiTask;
     Title: String;          // Shown in the panel, e.g. the question or "Explain query"
     UserMessage: String;    // Task message as sent; becomes history
@@ -29,6 +33,7 @@ type
   TAiConversation = class
   private
     FTurns: array of TAiTurn;
+    FNextId: Integer;
     FMaxHistoryTurns: Integer;
     FMaxHistoryAnswerChars: Integer;
     FLastErrorSql: String;
@@ -37,13 +42,16 @@ type
     function GetTurn(Index: Integer): TAiTurn;
   public
     constructor Create;
-    // Starts a turn in streaming state, returns its index
+    // Starts a turn in streaming state, returns its id
     function StartTurn(Task: TAiTask; const Title, UserMessage, ContextSent: String): Integer;
-    procedure AppendAnswer(Index: Integer; const Text: String);
-    procedure AppendReasoning(Index: Integer; const Text: String);
-    procedure FinishTurn(Index: Integer; const Usage: TAiUsage);
-    procedure FailTurn(Index: Integer; Kind: TAiErrorKind; const Message: String);
-    procedure CancelTurn(Index: Integer);
+    // Index of a turn id, -1 when the turn no longer exists
+    function IndexOfTurn(TurnId: Integer): Integer;
+    // These return False and do nothing when the turn no longer exists or is not streaming
+    function AppendAnswer(TurnId: Integer; const Text: String): Boolean;
+    function AppendReasoning(TurnId: Integer; const Text: String): Boolean;
+    function FinishTurn(TurnId: Integer; const Usage: TAiUsage): Boolean;
+    function FailTurn(TurnId: Integer; Kind: TAiErrorKind; const Message: String): Boolean;
+    function CancelTurn(TurnId: Integer): Boolean;
     // Earlier successful turns as user/assistant messages, oldest first, at most MaxHistoryTurns.
     // Reasoning is never sent back; long answers are shortened.
     function History: TAiChatMessages;
@@ -59,6 +67,9 @@ type
   end;
 
 implementation
+
+uses
+  ai.text;
 
 constructor TAiConversation.Create;
 begin
@@ -78,44 +89,88 @@ begin
 end;
 
 function TAiConversation.StartTurn(Task: TAiTask; const Title, UserMessage, ContextSent: String): Integer;
+var
+  i: Integer;
 begin
+  Inc(FNextId);
+  Result := FNextId;
   SetLength(FTurns, Length(FTurns) + 1);
-  Result := High(FTurns);
-  FTurns[Result] := Default(TAiTurn);
-  FTurns[Result].Task := Task;
-  FTurns[Result].Title := Title;
-  FTurns[Result].UserMessage := UserMessage;
-  FTurns[Result].ContextSent := ContextSent;
-  FTurns[Result].State := tsStreaming;
+  i := High(FTurns);
+  FTurns[i] := Default(TAiTurn);
+  FTurns[i].Id := Result;
+  FTurns[i].Task := Task;
+  FTurns[i].Title := Title;
+  FTurns[i].UserMessage := UserMessage;
+  FTurns[i].ContextSent := ContextSent;
+  FTurns[i].State := tsStreaming;
 end;
 
-procedure TAiConversation.AppendAnswer(Index: Integer; const Text: String);
+function TAiConversation.IndexOfTurn(TurnId: Integer): Integer;
+var
+  i: Integer;
 begin
-  FTurns[Index].Answer := FTurns[Index].Answer + Text;
+  for i:=High(FTurns) downto 0 do begin
+    if FTurns[i].Id = TurnId then
+      Exit(i);
+  end;
+  Result := -1;
 end;
 
-procedure TAiConversation.AppendReasoning(Index: Integer; const Text: String);
+function TAiConversation.AppendAnswer(TurnId: Integer; const Text: String): Boolean;
+var
+  i: Integer;
 begin
-  FTurns[Index].Reasoning := FTurns[Index].Reasoning + Text;
+  i := IndexOfTurn(TurnId);
+  Result := (i >= 0) and (FTurns[i].State = tsStreaming);
+  if Result then
+    FTurns[i].Answer := FTurns[i].Answer + Text;
 end;
 
-procedure TAiConversation.FinishTurn(Index: Integer; const Usage: TAiUsage);
+function TAiConversation.AppendReasoning(TurnId: Integer; const Text: String): Boolean;
+var
+  i: Integer;
 begin
-  FTurns[Index].Usage := Usage;
-  FTurns[Index].State := tsDone;
+  i := IndexOfTurn(TurnId);
+  Result := (i >= 0) and (FTurns[i].State = tsStreaming);
+  if Result then
+    FTurns[i].Reasoning := FTurns[i].Reasoning + Text;
 end;
 
-procedure TAiConversation.FailTurn(Index: Integer; Kind: TAiErrorKind; const Message: String);
+function TAiConversation.FinishTurn(TurnId: Integer; const Usage: TAiUsage): Boolean;
+var
+  i: Integer;
 begin
-  FTurns[Index].ErrorKind := Kind;
-  FTurns[Index].ErrorMessage := Message;
-  FTurns[Index].State := tsFailed;
+  i := IndexOfTurn(TurnId);
+  Result := (i >= 0) and (FTurns[i].State = tsStreaming);
+  if Result then begin
+    FTurns[i].Usage := Usage;
+    FTurns[i].State := tsDone;
+  end;
 end;
 
-procedure TAiConversation.CancelTurn(Index: Integer);
+function TAiConversation.FailTurn(TurnId: Integer; Kind: TAiErrorKind; const Message: String): Boolean;
+var
+  i: Integer;
 begin
-  FTurns[Index].ErrorKind := ekCancelled;
-  FTurns[Index].State := tsCancelled;
+  i := IndexOfTurn(TurnId);
+  Result := (i >= 0) and (FTurns[i].State = tsStreaming);
+  if Result then begin
+    FTurns[i].ErrorKind := Kind;
+    FTurns[i].ErrorMessage := Message;
+    FTurns[i].State := tsFailed;
+  end;
+end;
+
+function TAiConversation.CancelTurn(TurnId: Integer): Boolean;
+var
+  i: Integer;
+begin
+  i := IndexOfTurn(TurnId);
+  Result := (i >= 0) and (FTurns[i].State = tsStreaming);
+  if Result then begin
+    FTurns[i].ErrorKind := ekCancelled;
+    FTurns[i].State := tsCancelled;
+  end;
 end;
 
 function TAiConversation.History: TAiChatMessages;
@@ -130,17 +185,16 @@ begin
   for i:=High(FTurns) downto 0 do begin
     if Taken >= FMaxHistoryTurns then
       Break;
-    if (FTurns[i].State = tsDone) and (FTurns[i].Answer.Trim <> '') then begin
+    if (FTurns[i].State = tsDone) and (StripThinking(FTurns[i].Answer) <> '') then begin
       First := i;
       Inc(Taken);
     end;
   end;
   for i:=First to High(FTurns) do begin
-    if (FTurns[i].State <> tsDone) or (FTurns[i].Answer.Trim = '') then
+    if (FTurns[i].State <> tsDone) or (StripThinking(FTurns[i].Answer) = '') then
       Continue;
-    Answer := FTurns[i].Answer;
-    if Length(Answer) > FMaxHistoryAnswerChars then
-      Answer := Copy(Answer, 1, FMaxHistoryAnswerChars) + #10 + '[...]';
+    // Reasoning written inline is not sent back; long answers are shortened
+    Answer := Utf8Truncate(StripThinking(FTurns[i].Answer), FMaxHistoryAnswerChars, #10'[...]');
     SetLength(Result, Length(Result) + 2);
     Result[High(Result)-1] := AiChatMessage(crUser, FTurns[i].UserMessage);
     Result[High(Result)] := AiChatMessage(crAssistant, Answer);

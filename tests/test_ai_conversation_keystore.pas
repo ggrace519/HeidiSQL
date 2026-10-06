@@ -22,6 +22,9 @@ type
     procedure HistoryExcludesReasoning;
     procedure HistoryShortensLongAnswers;
     procedure QueryErrorRemembered;
+    procedure LateDataAfterCancelIgnored;
+    procedure LateDataAfterClearIgnored;
+    procedure HistoryStripsInlineThinking;
   end;
 
   TFakeKeychain = class(TInterfacedObject, IAiKeychain)
@@ -70,19 +73,22 @@ end;
 
 procedure TAiConversationTest.TurnLifecycle;
 var
-  i: Integer;
+  Id, i: Integer;
   Usage: TAiUsage;
 begin
-  i := FConv.StartTurn(atExplain, 'Explain query', 'msg', 'ctx');
+  Id := FConv.StartTurn(atExplain, 'Explain query', 'msg', 'ctx');
+  i := FConv.IndexOfTurn(Id);
+  AssertEquals('index', 0, i);
+  AssertEquals('id stored', Id, FConv[i].Id);
   AssertTrue('streaming', FConv[i].State = tsStreaming);
-  FConv.AppendReasoning(i, 'th');
-  FConv.AppendReasoning(i, 'ink');
-  FConv.AppendAnswer(i, 'An');
-  FConv.AppendAnswer(i, 'swer');
+  FConv.AppendReasoning(Id, 'th');
+  FConv.AppendReasoning(Id, 'ink');
+  FConv.AppendAnswer(Id, 'An');
+  FConv.AppendAnswer(Id, 'swer');
   Usage.Known := True;
   Usage.PromptTokens := 10;
   Usage.CompletionTokens := 2;
-  FConv.FinishTurn(i, Usage);
+  AssertTrue(FConv.FinishTurn(Id, Usage));
   AssertTrue('done', FConv[i].State = tsDone);
   AssertEquals('Answer', FConv[i].Answer);
   AssertEquals('think', FConv[i].Reasoning);
@@ -143,6 +149,43 @@ begin
   AddDone('q', StringOfChar('x', 50));
   AssertEquals(StringOfChar('x', 10) + #10'[...]', FConv.History[1].Content);
   AssertEquals('turn itself unchanged', 50, Length(FConv[0].Answer));
+end;
+
+procedure TAiConversationTest.LateDataAfterCancelIgnored;
+var
+  Old, New: Integer;
+begin
+  Old := FConv.StartTurn(atGenerate, 'q1', 'q1', '');
+  AssertTrue(FConv.CancelTurn(Old));
+  New := FConv.StartTurn(atGenerate, 'q2', 'q2', '');
+  AssertFalse('cancelled turn takes no data', FConv.AppendAnswer(Old, 'late'));
+  AssertFalse('cannot finish twice', FConv.FinishTurn(Old, Default(TAiUsage)));
+  AssertTrue(FConv.AppendAnswer(New, 'mine'));
+  AssertEquals('', FConv[0].Answer);
+  AssertEquals('mine', FConv[1].Answer);
+end;
+
+procedure TAiConversationTest.LateDataAfterClearIgnored;
+var
+  Old, New: Integer;
+begin
+  Old := FConv.StartTurn(atGenerate, 'q1', 'q1', '');
+  FConv.Clear;
+  AssertFalse('no turn, no crash', FConv.AppendAnswer(Old, 'late'));
+  New := FConv.StartTurn(atGenerate, 'q2', 'q2', '');
+  AssertFalse('ids are not reused', Old = New);
+  AssertFalse(FConv.AppendAnswer(Old, 'late'));
+  AssertEquals('', FConv[0].Answer);
+end;
+
+procedure TAiConversationTest.HistoryStripsInlineThinking;
+var
+  Id: Integer;
+begin
+  Id := FConv.StartTurn(atGenerate, 'q', 'q', '');
+  FConv.AppendAnswer(Id, '<think>long reasoning</think>SELECT 1;');
+  FConv.FinishTurn(Id, Default(TAiUsage));
+  AssertEquals('SELECT 1;', FConv.History[1].Content);
 end;
 
 procedure TAiConversationTest.QueryErrorRemembered;
