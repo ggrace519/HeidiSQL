@@ -15,7 +15,7 @@ uses
   SynEdit, laz.VirtualTrees, SynEditKeyCmds, ActnList, Menus,
   dbstructures, RegExpr, EditBtn, LCLType, StrUtils, SpinEx,
   extra_controls, reformatter, Buttons, ColorBox, LCLProc, LCLIntf, lazaruscompat, FileUtil,
-  vktable, generic_types;
+  vktable, generic_types, ai.prefsframe;
 
 type
   TShortcutItemData = record
@@ -234,6 +234,7 @@ type
     FLanguages: TStringList;
     FRestartOptionTouched: Boolean;
     FRestartOptionApplied: Boolean;
+    FAiProviders: TAiProvidersPanel; // AI Edition
     procedure InitLanguages;
     procedure SelectDirectory(Sender: TObject; NewFolderButton: Boolean);
     function EnsureShortcutIsUnused(RequestShortcut: TShortCut): Boolean;
@@ -430,6 +431,8 @@ begin
   Mainform.ListCommandStats.Invalidate;
 
 
+  FAiProviders.SaveSettings; // AI Edition
+
   FRestartOptionApplied := FRestartOptionTouched;
 
   // Settings have been applied, send a signal to the user
@@ -548,6 +551,16 @@ begin
   Width := AppSettings.ReadInt(asPreferencesWindowWidth);
   Height := AppSettings.ReadInt(asPreferencesWindowHeight);
   FixVT(TreeShortcutItems);
+  // AI Edition: provider profiles tab, created in code
+  with TTabSheet.Create(Self) do begin
+    PageControl := pagecontrolMain;
+    Caption := _('AI providers');
+    ImageIndex := 206;
+    FAiProviders := TAiProvidersPanel.Create(Self);
+    FAiProviders.Parent := pagecontrolMain.Pages[PageIndex];
+    FAiProviders.Align := alClient;
+    FAiProviders.OnModified := Modified;
+  end;
 
   // General tab
   editTerminal.Enabled := {$IFDEF WINDOWS} False {$ELSE} True {$ENDIF};
@@ -785,6 +798,7 @@ begin
   // Disable global shortcuts
   MainForm.ActionList1.State := asSuspended;
 
+  FAiProviders.LoadSettings; // AI Edition
   TExtForm.PageControlTabHighlight(pagecontrolMain);
 
   FRestartOptionTouched := False;

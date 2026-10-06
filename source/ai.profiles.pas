@@ -27,9 +27,12 @@ type
     Temperature: Double;    // < 0: server default
     MaxContextChars: Integer;
     IoTimeoutSec: Integer;  // Read timeout; local models can be silent for minutes on long prompts
+    AllowUntrustedTls: Boolean; // Accept self-signed HTTPS certificates, e.g. of a local server
+    ExtraCaFile: String;    // Additional trusted CAs (PEM file), e.g. a company CA
   end;
 
-  TAiProfileProblem = (ppNoName, ppBadUrl, ppNoModel, ppNoKeyName, ppContextSize, ppTimeout);
+  TAiProfileProblem = (ppNoName, ppBadUrl, ppNoModel, ppNoKeyName, ppContextSize, ppTimeout,
+    ppCaFileMissing);
   TAiProfileProblems = set of TAiProfileProblem;
 
   TAiProfilesLoadResult = (plrOk, plrMissing, plrUnreadable, plrCorrupt, plrNewerVersion);
@@ -125,6 +128,8 @@ begin
     Include(Result, ppContextSize);
   if (Profile.IoTimeoutSec < 5) or (Profile.IoTimeoutSec > 3600) then
     Include(Result, ppTimeout);
+  if (Profile.ExtraCaFile.Trim <> '') and not FileExists(Profile.ExtraCaFile.Trim) then
+    Include(Result, ppCaFileMissing);
 end;
 
 function FormatFromName(const Name: String): TAiProviderFormat;
@@ -261,6 +266,8 @@ begin
       Obj.Add('temperature', P.Temperature);
       Obj.Add('maxContextChars', P.MaxContextChars);
       Obj.Add('ioTimeoutSec', P.IoTimeoutSec);
+      Obj.Add('allowUntrustedTls', P.AllowUntrustedTls);
+      Obj.Add('extraCaFile', P.ExtraCaFile);
       List.Add(Obj);
     end;
     Root.Add('profiles', List);
@@ -319,6 +326,8 @@ begin
         P.Temperature := Defaults.Temperature;
       P.MaxContextChars := Obj.Get('maxContextChars', Defaults.MaxContextChars);
       P.IoTimeoutSec := Obj.Get('ioTimeoutSec', Defaults.IoTimeoutSec);
+      P.AllowUntrustedTls := Obj.Get('allowUntrustedTls', False);
+      P.ExtraCaFile := Obj.Get('extraCaFile', '');
       // Out-of-range numbers from a hand edit fall back to defaults
       if ppContextSize in ValidateAiProfile(P) then
         P.MaxContextChars := Defaults.MaxContextChars;

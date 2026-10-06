@@ -40,7 +40,7 @@ implementation
 
 uses
   {$IFDEF WINDOWS} Windows, {$ENDIF}
-  dynlibs, ctypes, openssl, sockets;
+  dynlibs, ctypes, openssl;
 
 const
   SSL_VERIFY_PEER_FLAG = 1;

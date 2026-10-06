@@ -82,6 +82,9 @@ jobs:
           timeout-minutes: 10
           if: ${{ matrix.operating-system == 'windows-latest' }}
           shell: pwsh
+          env:
+            # The Windows Credential Manager is usable on the runner: test the keychain backend
+            HEIDISQL_TEST_KEYCHAIN: 1
           # make has no POSIX shell here to find lazbuild, so the Lazarus folder is passed in.
           # The OpenSSL DLLs, shipped next to heidisql.exe, are also needed next to the tests.
           run: |

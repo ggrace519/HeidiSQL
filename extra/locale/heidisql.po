@@ -6896,3 +6896,183 @@ msgstr "Download version %s"
 
 msgid "Version %s, based on HeidiSQL %s"
 msgstr "Version %s, based on HeidiSQL %s"
+
+msgid "Use this profile for sessions that do not choose one"
+msgstr "Use this profile for sessions that do not choose one"
+
+msgid "Base URL:"
+msgstr "Base URL:"
+
+msgid "Model:"
+msgstr "Model:"
+
+msgid "Test"
+msgstr "Test"
+
+msgid "Connect to the server and list its models"
+msgstr "Connect to the server and list its models"
+
+msgid "Environment variable"
+msgstr "Environment variable"
+
+msgid "Keychain entry"
+msgstr "Keychain entry"
+
+msgid "API key:"
+msgstr "API key:"
+
+msgid "Variable or entry name:"
+msgstr "Variable or entry name:"
+
+msgid "Store key..."
+msgstr "Store key..."
+
+msgid "Remove key"
+msgstr "Remove key"
+
+msgid "Key status:"
+msgstr "Key status:"
+
+msgid "Temperature:"
+msgstr "Temperature:"
+
+msgid "Schema context (characters):"
+msgstr "Schema context (characters):"
+
+msgid "Read timeout (seconds):"
+msgstr "Read timeout (seconds):"
+
+msgid "Accept untrusted HTTPS certificates (self-signed servers only)"
+msgstr "Accept untrusted HTTPS certificates (self-signed servers only)"
+
+msgid "Extra CA file:"
+msgstr "Extra CA file:"
+
+msgid "(unnamed)"
+msgstr "(unnamed)"
+
+msgid "New provider"
+msgstr "New provider"
+
+msgid "Remove the provider \"%s\"? Sessions using it will ask for another provider."
+msgstr "Remove the provider \"%s\"? Sessions using it will ask for another provider."
+
+msgid "Connecting..."
+msgstr "Connecting..."
+
+msgid "Enter a name for the keychain entry first."
+msgstr "Enter a name for the keychain entry first."
+
+msgid "Run this command in Terminal, which then asks for the key. It was copied to the clipboard:"
+msgstr "Run this command in Terminal, which then asks for the key. It was copied to the clipboard:"
+
+msgid "Store key"
+msgstr "Store key"
+
+msgid "API key for \"%s\":"
+msgstr "API key for \"%s\":"
+
+msgid "Remove the keychain entry \"%s\"?"
+msgstr "Remove the keychain entry \"%s\"?"
+
+msgid "%s cannot be read as profiles. Fix or delete the file; it is not overwritten."
+msgstr "%s cannot be read as profiles. Fix or delete the file; it is not overwritten."
+
+msgid "%s cannot be opened."
+msgstr "%s cannot be opened."
+
+msgid "%s was written by a newer version and is shown read-only."
+msgstr "%s was written by a newer version and is shown read-only."
+
+msgid "Saving the AI providers failed: %s"
+msgstr "Saving the AI providers failed: %s"
+
+msgid "No API key is used"
+msgstr "No API key is used"
+
+msgid "Key found in environment variable %s"
+msgstr "Key found in environment variable %s"
+
+msgid "Key found in keychain entry \"%s\""
+msgstr "Key found in keychain entry \"%s\""
+
+msgid "Environment variable %s is not set. Programs started from the desktop menu may not see variables from a shell profile."
+msgstr "Environment variable %s is not set. Programs started from the desktop menu may not see variables from a shell profile."
+
+msgid "No keychain entry \"%s\" yet. Use \"Store key\"."
+msgstr "No keychain entry \"%s\" yet. Use \"Store key\"."
+
+msgid "The keychain of this system is not available"
+msgstr "The keychain of this system is not available"
+
+msgid "The keychain refused access"
+msgstr "The keychain refused access"
+
+msgid "The server rejected the API key."
+msgstr "The server rejected the API key."
+
+msgid "Not found: check that the base URL ends with /v1 and that the model \"%s\" exists."
+msgstr "Not found: check that the base URL ends with /v1 and that the model \"%s\" exists."
+
+msgid "The server did not accept the request."
+msgstr "The server did not accept the request."
+
+msgid "Too many requests: the provider is rate limiting. Try again later."
+msgstr "Too many requests: the provider is rate limiting. Try again later."
+
+msgid "The server reported an error."
+msgstr "The server reported an error."
+
+msgid "Cannot connect to %s."
+msgstr "Cannot connect to %s."
+
+msgid "No answer in time. Local models may need a longer timeout for large requests."
+msgstr "No answer in time. Local models may need a longer timeout for large requests."
+
+msgid "Cancelled."
+msgstr "Cancelled."
+
+msgid "The answer could not be understood."
+msgstr "The answer could not be understood."
+
+msgid "Enter a name."
+msgstr "Enter a name."
+
+msgid "The base URL must start with http:// or https://."
+msgstr "The base URL must start with http:// or https://."
+
+msgid "Enter or select a model."
+msgstr "Enter or select a model."
+
+msgid "Enter the name of the environment variable or keychain entry."
+msgstr "Enter the name of the environment variable or keychain entry."
+
+msgid "The context size must be between 1000 and 1000000 characters."
+msgstr "The context size must be between 1000 and 1000000 characters."
+
+msgid "The timeout must be between 5 and 3600 seconds."
+msgstr "The timeout must be between 5 and 3600 seconds."
+
+msgid "The CA file does not exist."
+msgstr "The CA file does not exist."
+
+msgid "Connected, but the server listed no models."
+msgstr "Connected, but the server listed no models."
+
+msgid "Connected: %d models available."
+msgstr "Connected: %d models available."
+
+msgid "Local Ollama"
+msgstr "Local Ollama"
+
+msgid "AI providers"
+msgstr "AI providers"
+
+msgid "Look the key up in the keychain"
+msgstr "Look the key up in the keychain"
+
+msgid "Keychain entry \"%s\", not checked yet."
+msgstr "Keychain entry \"%s\", not checked yet."
+
+msgid "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
+msgstr "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
