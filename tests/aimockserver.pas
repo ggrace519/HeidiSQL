@@ -46,9 +46,6 @@ function UnusedPort: Word;
 
 implementation
 
-uses
-  {$IFDEF UNIX} BaseUnix {$ENDIF};
-
 function HttpHead(Status: Integer; const ContentType: String; ContentLength: Integer = -1): RawByteString;
 begin
   Result := 'HTTP/1.1 ' + IntToStr(Status) + ' Status' + #13#10
