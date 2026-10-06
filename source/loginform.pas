@@ -38,7 +38,7 @@ uses apphelpers, main;
 
 procedure TfrmLogin.FormCreate(Sender: TObject);
 begin
-  Caption := APPNAME + ' - Login';
+  Caption := APPDISPLAYNAME + ' - Login';
   lblPrompt.Font.Size := 10;
   lblPrompt.Font.Color := GetThemeColor(clHotlight);
   lblPrompt.Font.Style := lblPrompt.Font.Style + [fsBold];

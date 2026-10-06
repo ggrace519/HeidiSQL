@@ -117,8 +117,8 @@ begin
   editDonated.Text := AppSettings.ReadString(asDonatedEmail);
 
   // Assign text
-  Caption := f_('About %s', [APPNAME]);
-  lblAppName.Caption := APPNAME;
+  Caption := f_('About %s', [APPDISPLAYNAME]);
+  lblAppName.Caption := APPDISPLAYNAME;
   lblAppVersion.Caption := _('Version') + ' ' + Mainform.AppVersion;
   lblAppCompiled.Caption := _('Compiled on:') + ' ' + DateTimeToStr(GetFileModTime(Application.ExeName)) + ' with';
   lnklblCompiler.Caption := GetCompilerVersion;
