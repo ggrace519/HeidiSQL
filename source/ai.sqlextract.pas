@@ -1,7 +1,7 @@
 unit ai.sqlextract;
 
-// Takes the SQL out of a model's answer, and flags statements that would change data or schema,
-// so the UI can warn before the user runs them. No LCL dependencies.
+// Takes the SQL out of a model's answer, and flags SQL that may change data or schema, so the UI
+// can warn before the user runs it. No LCL dependencies.
 
 {$mode delphi}{$H+}
 
@@ -14,32 +14,46 @@ type
   TSqlEffect = (seModifiesData, seModifiesSchema);
   TSqlEffects = set of TSqlEffect;
 
-// Removes <think>...</think> blocks some models emit inside the answer text.
-// An unclosed block at the start (answer still streaming, or cut off) is removed to the end.
-function StripThinking(const Answer: String): String;
-
-// The SQL to insert into the editor: the body of the first ```sql fence (or a fence tagged with
-// a SQL dialect), else of the first untagged fence, else the whole answer if it starts with an
-// SQL keyword. Empty if the answer contains no recognizable SQL.
+// The SQL to insert into the editor: the body of the first fence tagged sql or an SQL dialect,
+// else of the first untagged fence, else the whole answer if it is bare SQL (starts with an SQL
+// keyword, ends with ";" and contains no prose). Empty if there is no recognizable SQL.
 function ExtractSql(const Answer: String): String;
 
-// Statement kinds in Sql that write data (INSERT, UPDATE, DELETE, ...) or change schema or
-// privileges (CREATE, ALTER, DROP, GRANT, ...). Comments, string literals and quoted identifiers
-// are ignored. Conservative: "SELECT ... FOR UPDATE" counts as modifying data.
+// All fenced code blocks tagged sql (or a dialect) or untagged, in order. The UI offers each one,
+// as answers often contain a query and separate CREATE INDEX statements.
+function ExtractSqlBlocks(const Answer: String): TStringArray;
+
+// Deny by default: a statement counts as read-only only if it starts with SELECT, WITH, SHOW,
+// EXPLAIN, DESCRIBE, DESC, VALUES or TABLE and contains no data- or schema-changing keyword and
+// no INTO. Everything else may modify data. Comments, strings and quoted identifiers are ignored,
+// and as dialects disagree on what is a comment or string (backslash escapes, "#" comments,
+// "--" without a space), every reading is checked and the results are combined. MySQL
+// executable comments /*! */ and optimizer hints /*+ */ count as code.
 function SqlEffects(const Sql: String): TSqlEffects;
 
 implementation
 
+uses
+  ai.text;
+
+type
+  TMaskOption = (moBackslashEscapes, moHashComments, moDashNeedsSpace);
+  TMaskOptions = set of TMaskOption;
+
 const
   SQLFENCETAGS: array[0..8] of String = ('sql', 'mysql', 'mariadb', 'postgresql', 'postgres',
     'pgsql', 'sqlite', 'tsql', 'plpgsql');
-  STARTKEYWORDS: array[0..14] of String = ('SELECT', 'WITH', 'INSERT', 'UPDATE', 'DELETE',
-    'CREATE', 'ALTER', 'DROP', 'SHOW', 'EXPLAIN', 'DESCRIBE', 'REPLACE', 'TRUNCATE', 'CALL', 'SET');
-  DATAKEYWORDS: array[0..12] of String = ('INSERT', 'UPDATE', 'DELETE', 'REPLACE', 'MERGE',
-    'UPSERT', 'TRUNCATE', 'CALL', 'EXEC', 'EXECUTE', 'LOAD', 'COPY', 'HANDLER');
-  // COMMENT is left out on purpose: it is a common column name
-  SCHEMAKEYWORDS: array[0..6] of String = ('CREATE', 'ALTER', 'DROP', 'RENAME', 'GRANT',
-    'REVOKE', 'ATTACH');
+  BARESTARTKEYWORDS: array[0..11] of String = ('SELECT', 'WITH', 'INSERT', 'UPDATE', 'DELETE',
+    'CREATE', 'ALTER', 'DROP', 'SHOW', 'EXPLAIN', 'REPLACE', 'TRUNCATE');
+  READONLYSTARTS: array[0..7] of String = ('SELECT', 'WITH', 'SHOW', 'EXPLAIN', 'DESCRIBE',
+    'DESC', 'VALUES', 'TABLE');
+  DATAKEYWORDS: array[0..23] of String = ('INSERT', 'UPDATE', 'DELETE', 'REPLACE', 'MERGE',
+    'UPSERT', 'TRUNCATE', 'CALL', 'EXEC', 'EXECUTE', 'LOAD', 'COPY', 'HANDLER', 'DO', 'LOCK',
+    'UNLOCK', 'KILL', 'FLUSH', 'SHUTDOWN', 'VACUUM', 'OPTIMIZE', 'REPAIR', 'PRAGMA', 'INTO');
+  // COMMENT is left out on purpose: it is a common column name. A statement starting with
+  // COMMENT ON is still flagged, as it is not a read-only start.
+  SCHEMAKEYWORDS: array[0..7] of String = ('CREATE', 'ALTER', 'DROP', 'RENAME', 'GRANT',
+    'REVOKE', 'ATTACH', 'DETACH');
 
 function InList(const Word: String; const List: array of String): Boolean;
 var
@@ -52,64 +66,75 @@ begin
   Result := False;
 end;
 
-function StripThinking(const Answer: String): String;
-const
-  OPENTAG = '<think>';
-  CLOSETAG = '</think>';
-var
-  OpenPos, ClosePos: Integer;
+function SplitLines(const Text: String): TStringArray;
 begin
-  Result := Answer;
-  repeat
-    OpenPos := Pos(OPENTAG, LowerCase(Result));
-    if OpenPos = 0 then
-      Break;
-    ClosePos := Pos(CLOSETAG, LowerCase(Result), OpenPos);
-    if ClosePos = 0 then begin
-      SetLength(Result, OpenPos - 1);
-      Break;
-    end;
-    Delete(Result, OpenPos, ClosePos + Length(CLOSETAG) - OpenPos);
-  until False;
-  Result := Result.Trim;
+  Result := Text.Replace(#13#10, #10).Replace(#13, #10).Split([#10]);
 end;
 
-// Body of the first fence whose info string satisfies the filter, or '' if none
-function FenceBody(const Text: String; WantSqlTag: Boolean; out Found: Boolean): String;
+function BacktickRun(const Line: String): Integer;
+begin
+  Result := 0;
+  while (Result < Length(Line)) and (Line[Result + 1] = '`') do
+    Inc(Result);
+end;
+
+function FenceTag(const Line: String; Run: Integer): String;
+begin
+  // Info string, e.g. "sql" or "sql title=x": only the first word is the language
+  Result := LowerCase(Copy(Line, Run + 1, MaxInt).Trim);
+  if Pos(' ', Result) > 0 then
+    Result := Copy(Result, 1, Pos(' ', Result) - 1);
+end;
+
+type
+  TFence = record
+    Tag: String;
+    Body: String;
+  end;
+
+// All fenced blocks of at least three backticks; a block closes with a run at least as long
+function Fences(const Text: String): TArray<TFence>;
 var
   Lines: TStringArray;
-  i, j: Integer;
-  Line, Tag: String;
+  i, j, Run: Integer;
+  Line: String;
   Body: TStringArray;
+  Fence: TFence;
 begin
-  Result := '';
-  Found := False;
-  Lines := Text.Replace(#13#10, #10).Replace(#13, #10).Split([#10]);
+  Result := nil;
+  Lines := SplitLines(Text);
   i := 0;
   while i < Length(Lines) do begin
     Line := Lines[i].Trim;
-    if Line.StartsWith('```') then begin
-      // Info string, e.g. "sql" or "sql title=x": only the first word is the language
-      Tag := LowerCase(Copy(Line, 4, MaxInt).Trim);
-      if Pos(' ', Tag) > 0 then
-        Tag := Copy(Tag, 1, Pos(' ', Tag) - 1);
-      if (WantSqlTag and InList(Tag, SQLFENCETAGS)) or ((not WantSqlTag) and (Tag = '')) then begin
-        Body := nil;
-        j := i + 1;
-        while (j < Length(Lines)) and (not Lines[j].Trim.StartsWith('```')) do begin
-          SetLength(Body, Length(Body) + 1);
-          Body[High(Body)] := Lines[j];
-          Inc(j);
-        end;
-        Found := True;
-        Exit(String.Join(#10, Body).Trim);
+    Run := BacktickRun(Line);
+    if Run >= 3 then begin
+      Fence.Tag := FenceTag(Line, Run);
+      Body := nil;
+      j := i + 1;
+      while (j < Length(Lines)) and (BacktickRun(Lines[j].Trim) < Run) do begin
+        SetLength(Body, Length(Body) + 1);
+        Body[High(Body)] := Lines[j];
+        Inc(j);
       end;
-      // Skip the whole foreign fence, so its closing line is not taken as an opening one
-      Inc(i);
-      while (i < Length(Lines)) and (not Lines[i].Trim.StartsWith('```')) do
-        Inc(i);
+      Fence.Body := String.Join(#10, Body).Trim;
+      SetLength(Result, Length(Result) + 1);
+      Result[High(Result)] := Fence;
+      i := j;
     end;
     Inc(i);
+  end;
+end;
+
+function ExtractSqlBlocks(const Answer: String): TStringArray;
+var
+  Fence: TFence;
+begin
+  Result := nil;
+  for Fence in Fences(StripThinking(Answer)) do begin
+    if ((Fence.Tag = '') or InList(Fence.Tag, SQLFENCETAGS)) and (Fence.Body <> '') then begin
+      SetLength(Result, Length(Result) + 1);
+      Result[High(Result)] := Fence.Body;
+    end;
   end;
 end;
 
@@ -123,129 +148,189 @@ begin
   Result := Copy(Text, 1, i - 1);
 end;
 
+// A sentence boundary, e.g. "table. Then", marks an answer as prose
+function HasSentenceBoundary(const Text: String): Boolean;
+var
+  i: Integer;
+begin
+  for i:=2 to Length(Text) - 2 do begin
+    if (Text[i] in ['.', '?', '!', ':']) and (Text[i-1] in ['a'..'z', 'A'..'Z', ')'])
+      and (Text[i+1] = ' ') and (Text[i+2] in ['A'..'Z']) then
+      Exit(True);
+  end;
+  Result := False;
+end;
+
 function ExtractSql(const Answer: String): String;
 var
   Text: String;
-  Found: Boolean;
+  Fence: TFence;
+  All: TArray<TFence>;
 begin
   Text := StripThinking(Answer);
-  Result := FenceBody(Text, True, Found);
-  if Found then
-    Exit;
-  Result := FenceBody(Text, False, Found);
-  if Found then
-    Exit;
-  if InList(FirstWord(Text), STARTKEYWORDS) then
+  All := Fences(Text);
+  for Fence in All do begin
+    if InList(Fence.Tag, SQLFENCETAGS) and (Fence.Body <> '') then
+      Exit(Fence.Body);
+  end;
+  for Fence in All do begin
+    if (Fence.Tag = '') and (Fence.Body <> '') then
+      Exit(Fence.Body);
+  end;
+  if (Length(All) = 0) and InList(FirstWord(Text), BARESTARTKEYWORDS)
+    and Text.EndsWith(';') and not HasSentenceBoundary(Text) then
     Result := Text
   else
     Result := '';
 end;
 
-// Replaces comments, string literals and quoted identifiers with spaces
-function MaskNonCode(const Sql: String): String;
+// Replaces comments, string literals and quoted identifiers with spaces, under one dialect
+// reading. Executable comments /*! */ and hints /*+ */ keep their content as code.
+function MaskNonCode(const Sql: String; Options: TMaskOptions): String;
 var
+  Code: String;
   i, j, Len: Integer;
   Quote: Char;
   Tag: String;
+
+  procedure Blank(FromPos, ToPos: Integer);
+  var
+    k: Integer;
+  begin
+    for k:=FromPos to ToPos do begin
+      if (k >= 1) and (k <= Len) then
+        Code[k] := ' ';
+    end;
+  end;
+
+  function IsDashComment(p: Integer): Boolean;
+  begin
+    Result := (Code[p] = '-') and (p < Len) and (Code[p+1] = '-');
+    if Result and (moDashNeedsSpace in Options) then
+      Result := (p + 1 = Len) or (Code[p+2] in [' ', #9, #10, #13]);
+  end;
+
 begin
-  Result := Sql;
-  Len := Length(Result);
+  Code := Sql;
+  Len := Length(Code);
   i := 1;
   while i <= Len do begin
-    // -- and # line comments
-    if ((Result[i] = '-') and (i < Len) and (Result[i+1] = '-')) or (Result[i] = '#') then begin
-      while (i <= Len) and (Result[i] <> #10) do begin
-        Result[i] := ' ';
-        Inc(i);
+    if IsDashComment(i) or ((Code[i] = '#') and (moHashComments in Options)) then begin
+      j := i;
+      while (j <= Len) and (Code[j] <> #10) do
+        Inc(j);
+      Blank(i, j - 1);
+      i := j;
+    end
+    else if (Code[i] = '/') and (i < Len) and (Code[i+1] = '*') then begin
+      j := Pos('*/', Code, i + 2);
+      if j = 0 then
+        j := Len + 1;
+      if (i + 2 <= Len) and (Code[i+2] in ['!', '+']) then begin
+        // Executable comment: hide only the delimiters and an optional version number
+        Blank(i, i + 2);
+        i := i + 3;
+        while (i <= Len) and (Code[i] in ['0'..'9']) do begin
+          Code[i] := ' ';
+          Inc(i);
+        end;
+        if j <= Len then
+          Blank(j, j + 1);
+      end else begin
+        Blank(i, j + 1);
+        i := j + 2;
       end;
     end
-    // /* block comments */
-    else if (Result[i] = '/') and (i < Len) and (Result[i+1] = '*') then begin
-      while (i <= Len) and not ((Result[i] = '*') and (i < Len) and (Result[i+1] = '/')) do begin
-        Result[i] := ' ';
-        Inc(i);
-      end;
-      if i <= Len then begin
-        Result[i] := ' ';
-        if i < Len then
-          Result[i+1] := ' ';
-        Inc(i, 2);
-      end;
-    end
-    // 'string', "identifier", `identifier`, [identifier]
-    else if Result[i] in ['''', '"', '`', '['] then begin
-      Quote := Result[i];
+    else if Code[i] in ['''', '"', '`', '['] then begin
+      Quote := Code[i];
       if Quote = '[' then
         Quote := ']';
-      Result[i] := ' ';
-      Inc(i);
-      while i <= Len do begin
-        if (Quote = '''') and (Result[i] = '\') and (i < Len) then begin
-          Result[i] := ' ';
-          Result[i+1] := ' ';
-          Inc(i, 2);
+      j := i + 1;
+      while j <= Len do begin
+        if (Quote = '''') and (moBackslashEscapes in Options) and (Code[j] = '\') then begin
+          Inc(j, 2);
           Continue;
         end;
-        if Result[i] = Quote then begin
-          // Doubled quote is an escaped quote
-          if (i < Len) and (Result[i+1] = Quote) and (Quote <> ']') then begin
-            Result[i] := ' ';
-            Result[i+1] := ' ';
-            Inc(i, 2);
+        if Code[j] = Quote then begin
+          if (j < Len) and (Code[j+1] = Quote) and (Quote <> ']') then begin
+            Inc(j, 2);
             Continue;
           end;
-          Result[i] := ' ';
-          Inc(i);
           Break;
         end;
-        Result[i] := ' ';
-        Inc(i);
-      end;
-    end
-    // PostgreSQL $tag$ ... $tag$ string
-    else if Result[i] = '$' then begin
-      j := i + 1;
-      while (j <= Len) and (Result[j] in ['A'..'Z', 'a'..'z', '0'..'9', '_']) do
         Inc(j);
-      if (j <= Len) and (Result[j] = '$') then begin
-        Tag := Copy(Result, i, j - i + 1);
-        j := Pos(Tag, Result, j + 1);
+      end;
+      Blank(i, j);
+      i := j + 1;
+    end
+    else if Code[i] = '$' then begin
+      // PostgreSQL $tag$ ... $tag$ string
+      j := i + 1;
+      while (j <= Len) and (Code[j] in ['A'..'Z', 'a'..'z', '0'..'9', '_']) do
+        Inc(j);
+      if (j <= Len) and (Code[j] = '$') then begin
+        Tag := Copy(Code, i, j - i + 1);
+        j := Pos(Tag, Code, j + 1);
         if j = 0 then
           j := Len + 1
         else
-          j := j + Length(Tag);
-        while i < j do begin
-          Result[i] := ' ';
-          Inc(i);
-        end;
+          j := j + Length(Tag) - 1;
+        Blank(i, j);
+        i := j + 1;
       end else
         Inc(i);
     end
     else
       Inc(i);
   end;
+  Result := Code;
 end;
 
-function SqlEffects(const Sql: String): TSqlEffects;
+function StatementEffects(const Statement: String): TSqlEffects;
 var
-  Code, Word: String;
   i, Start: Integer;
+  Word, First: String;
 begin
   Result := [];
-  Code := MaskNonCode(Sql);
+  First := '';
   i := 1;
-  while i <= Length(Code) do begin
-    if Code[i] in ['A'..'Z', 'a'..'z', '_'] then begin
+  while i <= Length(Statement) do begin
+    if Statement[i] in ['A'..'Z', 'a'..'z', '_'] then begin
       Start := i;
-      while (i <= Length(Code)) and (Code[i] in ['A'..'Z', 'a'..'z', '0'..'9', '_', '$', '.']) do
+      while (i <= Length(Statement)) and (Statement[i] in ['A'..'Z', 'a'..'z', '0'..'9', '_', '$', '.']) do
         Inc(i);
-      Word := Copy(Code, Start, i - Start);
+      Word := Copy(Statement, Start, i - Start);
+      if First = '' then
+        First := Word;
       if InList(Word, DATAKEYWORDS) then
         Include(Result, seModifiesData)
       else if InList(Word, SCHEMAKEYWORDS) then
         Include(Result, seModifiesSchema);
     end else
       Inc(i);
+  end;
+  // Unknown statement kinds may modify data
+  if (First <> '') and (Result = []) and not InList(First, READONLYSTARTS) then
+    Include(Result, seModifiesData);
+end;
+
+function SqlEffects(const Sql: String): TSqlEffects;
+var
+  Combo: Integer;
+  Options: TMaskOptions;
+  Statement: String;
+begin
+  Result := [];
+  for Combo:=0 to 7 do begin
+    Options := [];
+    if (Combo and 1) <> 0 then
+      Include(Options, moBackslashEscapes);
+    if (Combo and 2) <> 0 then
+      Include(Options, moHashComments);
+    if (Combo and 4) <> 0 then
+      Include(Options, moDashNeedsSpace);
+    for Statement in MaskNonCode(Sql, Options).Split([';']) do
+      Result := Result + StatementEffects(Statement);
   end;
 end;
 
