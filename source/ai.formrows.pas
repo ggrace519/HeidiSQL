@@ -70,8 +70,9 @@ begin
   Result.Parent := FHost;
   Result.BevelOuter := bvNone;
   Result.Caption := '';
+  // Standard height fits a drop-down list, the tallest single-line control in GTK2 themes
   if Height = 0 then
-    Height := S(30);
+    Height := S(34);
   // Rows are aligned to the top in the order they are added
   Result.SetBounds(0, FNextTop, FHost.ClientWidth, Height);
   Inc(FNextTop, Height);

@@ -60,6 +60,21 @@ server with a self-signed certificate, tick **Accept untrusted HTTPS certificate
 CA in **Extra CA file**. Providers are saved in `ai-providers.json` in the settings folder;
 **File > Export settings** does not include them.
 
+## Enabling the assistant for a session
+
+The assistant is off for every session until you enable it. In the session manager, select a
+session and open the **LLM Settings** tab:
+
+- **Enable AI assistant for this session** turns it on for this connection only.
+- **Provider** chooses one of the AI providers, or the default one. **Manage...** opens the
+  provider settings.
+- **Context notes** are sent with every request: write down what the schema does not say, such
+  as units, status codes or conventions.
+
+Sent to the provider with each request: table and column names, types, keys, comments,
+approximate row counts, the notes, and the SQL or question being asked about. No table data. For
+sensitive databases, use a local provider such as Ollama, so nothing leaves the computer.
+
 ## Building
 
 ```sh

@@ -14,7 +14,8 @@ uses
   laz.VirtualTrees, Menus, Graphics, extra_controls, lazaruscompat,
   {$IFDEF Windows} ActiveX {$ELSE} laz.FakeActiveX {$ENDIF},
   dbconnection, RegExpr, Types, FileUtil, SpinEx,
-  Math, ActnList, ComboEx, EditBtn, Buttons, ColorBox, extfiledialog, dbstructures;
+  Math, ActnList, ComboEx, EditBtn, Buttons, ColorBox, extfiledialog, dbstructures,
+  ai.sessionframe;
 
 type
 
@@ -217,6 +218,8 @@ type
     { Private declarations }
     FLoaded: Boolean;
     FSessionModified, FOnlyPasswordModified: Boolean;
+    FAiTab: TTabSheet; // AI Edition
+    FAiPanel: TAiSessionPanel;
     FServerVersion: String;
     FSettingsImportWaitTime: Cardinal;
     FPopupDatabases: TPopupMenu;
@@ -287,6 +290,15 @@ begin
   FLoaded := False;
   menuFoldersAtTop.Checked := AppSettings.ReadBool(asSessionManagerListFoldersAtTop);
   FSettingsImportWaitTime := 0;
+  // AI Edition: per-session AI settings, created in code after the other tabs
+  FAiTab := TTabSheet.Create(Self);
+  FAiTab.PageControl := PageControlDetails;
+  FAiTab.Caption := _('LLM Settings');
+  FAiTab.ImageIndex := 206;
+  FAiPanel := TAiSessionPanel.Create(Self);
+  FAiPanel.Parent := FAiTab;
+  FAiPanel.Align := alClient;
+  FAiPanel.OnModified := Modification;
 
   comboNetType.Clear;
   Params := TConnectionParameters.Create;
@@ -539,6 +551,7 @@ begin
     Sess.LogFileDml := chkLogFileDml.Checked;
     Sess.LogFilePath := editLogFilePath.Text;
     Sess.SaveToRegistry;
+    FAiPanel.SaveTo(Sess.SessionPath); // AI Edition
 
     // Apply session color (and othher settings) to opened connection(s)
     for Conn in MainForm.Connections do begin
@@ -586,6 +599,7 @@ begin
       NewSess := CurrentParams;
       NewSess.SessionPath := ParentKey+newName;
       NewSess.SaveToRegistry;
+      FAiPanel.SaveTo(NewSess.SessionPath); // AI Edition: the clone gets the same AI settings
       Node := ListSessions.InsertNode(ListSessions.FocusedNode, amInsertAfter, PConnectionParameters(NewSess));
       FSessionModified := False;
       SelectNode(ListSessions, Node);
@@ -1019,6 +1033,7 @@ begin
   tabAdvanced.TabVisible := SessionFocused;
   tabSSL.TabVisible := SessionFocused;
   tabStatistics.TabVisible := SessionFocused;
+  FAiTab.TabVisible := SessionFocused; // AI Edition
   menuRename.Enabled := Assigned(Node);
   menuNewSessionInFolder.Enabled := InFolder;
   menuNewFolderInFolder.Enabled := InFolder;
@@ -1089,6 +1104,7 @@ begin
     chkLogFileDml.Checked := Sess.LogFileDml;
     editLogFilePath.Text := Sess.LogFilePath;
     FServerVersion := Sess.ServerVersion;
+    FAiPanel.LoadFrom(Sess.SessionPath); // AI Edition
   end;
 
   FLoaded := True;
@@ -1517,6 +1533,7 @@ begin
       or (Sess.LogFileDdl <> chkLogFileDdl.Checked)
       or (Sess.LogFileDml <> chkLogFileDml.Checked)
       or (Sess.LogFilePath <> editLogFilePath.Text)
+      or FAiPanel.Modified // AI Edition
       ;
     PasswordModified := Sess.Password <> editPassword.Text;
     FOnlyPasswordModified := PasswordModified and (not FSessionModified);

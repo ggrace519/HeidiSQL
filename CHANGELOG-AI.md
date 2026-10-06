@@ -5,6 +5,11 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 ## [Unreleased]
 
 ### Added
+- **LLM Settings** tab in the session manager: enable the AI assistant per session (off by
+  default), choose its provider, and write notes about the database that the model cannot see in
+  the schema (e.g. units, soft deletes). The tab states exactly what is sent to the provider.
+  Settings follow the session when it is renamed or cloned. If a session's provider is removed,
+  the tab says so instead of silently switching to another provider.
 - **AI providers** in Preferences: define the AI servers the assistant can use (local Ollama, LM
   Studio, vLLM, OpenRouter, OpenAI or any OpenAI-compatible server), test the connection, which
   lists the server's models, and store API keys in the system keychain (Secret Service on Linux,
