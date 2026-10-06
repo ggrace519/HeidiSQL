@@ -75,7 +75,7 @@ implementation
 
 uses
   {$IFDEF UNIX} BaseUnix, {$ENDIF}
-  {$IFDEF WINDOWS} Windows, dynlibs, {$ENDIF}
+  {$IFDEF WINDOWS} dynlibs, {$ENDIF}
   fphttpclient, opensslsockets, ssockets, sockets, ai.sse, ai.openai, ai.tls;
 
 const
@@ -734,7 +734,8 @@ end;
 
 {$IFDEF WINDOWS}
 initialization
-  CancelIoExFunc := TCancelIoEx(GetProcedureAddress(GetModuleHandle('kernel32.dll'), 'CancelIoEx'));
+  // Not via the Windows unit: its TCriticalSection record would shadow SyncObjs.TCriticalSection
+  CancelIoExFunc := TCancelIoEx(GetProcedureAddress(LoadLibrary('kernel32.dll'), 'CancelIoEx'));
 {$ENDIF}
 {$IFDEF UNIX}
 initialization
