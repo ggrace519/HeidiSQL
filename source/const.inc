@@ -15,6 +15,11 @@ const
 
   // General things
   APPNAME = 'HeidiSQL';
+  // AI Edition fork: shown in window captions and About box. APPNAME stays unchanged, as it
+  // drives translation file lookup and the client name reported to database servers.
+  APPDISPLAYNAME = 'HeidiSQL AI Edition';
+  // Settings folder name, kept apart from a stock HeidiSQL installed on the same machine
+  APPCONFIGDIRNAME = 'heidisql-ai';
   APPDOMAIN = 'https://www.heidisql.com/';
   REGKEY_SESSIONS = 'Servers';
   REGKEY_QUERYHISTORY = 'QueryHistory';

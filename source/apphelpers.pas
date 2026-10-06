@@ -4516,7 +4516,9 @@ begin
     else begin
       // GetAppConfigDir returns "/home/rick/.config/heidisql" only in a very early state.
       // Later it takes the main form's caption into its folder name! Probably only before I created GetApplicationName.
-      FDirnameUserAppData := GetAppConfigDir(False);
+      // AI Edition: use a sibling folder of the stock one, so both editions can coexist.
+      FDirnameUserAppData := ExtractFilePath(ExcludeTrailingPathDelimiter(GetAppConfigDir(False)))
+        + APPCONFIGDIRNAME;
       FDirnameUserAppData := IncludeTrailingPathDelimiter(FDirnameUserAppData);
     end;
   end;
