@@ -2,7 +2,9 @@ unit ai.prefsframe;
 
 // "AI providers" tab of the preferences dialog: the list of provider profiles, an editor for the
 // selected one, key storage in the keychain and a connection test that lists the models.
-// Built in code, so the upstream preferences form file stays untouched.
+// Built in code (see ai.formrows), so the upstream preferences form file stays untouched.
+// The keychain is only accessed on a user action (Check, Store, Remove, Test): a locked keyring
+// may prompt or stall, which must not happen just by opening the preferences.
 
 {$mode delphi}{$H+}
 
@@ -10,50 +12,49 @@ interface
 
 uses
   Classes, SysUtils, Controls, StdCtrls, ExtCtrls, Forms, Graphics, Spin, EditBtn,
-  ai.profiles, ai.modelfetch;
+  ai.profiles, ai.modelfetch, ai.formrows;
 
 type
   TAiProvidersPanel = class(TPanel)
   private
     FProfiles: TAiProfileList;
     FFetch: TAiModelFetch;
+    FRows: TAiFormRows;
     FUpdating: Boolean;
     FModified: Boolean;
-    FNextRowTop: Integer;
-    FRowLabels: array of TLabel;
     FReadOnlyReason: String;
     FOnModified: TNotifyEvent;
     FList: TListBox;
-    FBtnAdd, FBtnRemove, FBtnDefault, FBtnTest, FBtnStoreKey, FBtnRemoveKey: TButton;
+    FBtnAdd, FBtnRemove, FBtnDefault, FBtnTest, FBtnCheckKey, FBtnStoreKey, FBtnRemoveKey: TButton;
     FEditor: TScrollBox;
     FEditName, FEditUrl, FEditKeyName: TEdit;
     FComboModel: TComboBox;
     FRadioKeySource: TRadioGroup;
     FLabelKeyStatus, FLabelTest, FLabelProblems, FLabelFileState: TLabel;
     FSpinTemperature: TFloatSpinEdit;
+    FCheckServerTemperature: TCheckBox;
     FSpinContext, FSpinTimeout: TSpinEdit;
     FCheckUntrusted: TCheckBox;
     FEditCaFile: TFileNameEdit;
-    function S(Value: Integer): Integer;
-    function AddRow(const Caption: String; Control: TControl; Height: Integer = 0): TPanel;
-    function AddMessageRow(const Caption: String; Message: TLabel): TPanel;
-    procedure SizeLabelColumn;
-    function NewButton(AParent: TWinControl; const Caption: String; Handler: TNotifyEvent): TButton;
-    procedure BuildControls;
+    procedure BuildList;
+    procedure BuildEditor;
     function SelectedIndex: Integer;
     procedure FillList;
     procedure ShowProfile;
+    procedure ClearEditor;
     procedure EditorChanged(Sender: TObject);
-    procedure KeySourceChanged(Sender: TObject);
-    procedure ListSelect(Sender: TObject);
+    procedure KeySourceClicked(Sender: TObject);
+    procedure ListSelectionChange(Sender: TObject; User: Boolean);
     procedure AddClick(Sender: TObject);
     procedure RemoveClick(Sender: TObject);
     procedure DefaultClick(Sender: TObject);
     procedure TestClick(Sender: TObject);
+    procedure CheckKeyClick(Sender: TObject);
     procedure StoreKeyClick(Sender: TObject);
     procedure RemoveKeyClick(Sender: TObject);
     procedure TestDone(Success: Boolean; const Models: TStringArray; const Message: String);
-    procedure RefreshKeyStatus;
+    procedure UpdateKeyControls;
+    procedure ShowKeyStatus;
     procedure SetModified;
   public
     constructor Create(AOwner: TComponent); override;
@@ -66,14 +67,11 @@ type
 implementation
 
 uses
-  Math, Dialogs, Clipbrd, apphelpers, ai.keystore, ai.appprofiles, ai.uitext
-  // The platform's keychain backend registers itself when its unit is linked
-  {$IF DEFINED(UNIX) AND NOT DEFINED(DARWIN)}, ai.keystore.libsecret{$ENDIF}
-  {$IFDEF WINDOWS}, ai.keystore.windows{$ENDIF}
-  {$IFDEF DARWIN}, ai.keystore.macos{$ENDIF};
+  Dialogs, apphelpers, ai.keystore, ai.appprofiles, ai.uitext, ai.keyactions;
 
 const
   DEFAULTMARK = '★ ';
+  DEFAULTTEMPERATURE = 0.2;
 
 constructor TAiProvidersPanel.Create(AOwner: TComponent);
 begin
@@ -82,149 +80,82 @@ begin
   Caption := '';
   FProfiles := TAiProfileList.Create;
   FFetch := TAiModelFetch.Create(Self);
-  BuildControls;
+  BuildList;
+  BuildEditor;
 end;
 
 destructor TAiProvidersPanel.Destroy;
 begin
   FFetch.Cancel;
+  FRows.Free;
   FProfiles.Free;
   inherited;
 end;
 
-function TAiProvidersPanel.S(Value: Integer): Integer;
-begin
-  // Controls are built in the constructor, before this panel has a parent: scale with the
-  // owning form, as Scale96ToForm would raise "Control has no parent form or frame"
-  if Owner is TCustomDesignControl then
-    Result := TCustomDesignControl(Owner).Scale96ToForm(Value)
-  else
-    Result := Scale96ToScreen(Value);
-end;
-
-function TAiProvidersPanel.NewButton(AParent: TWinControl; const Caption: String; Handler: TNotifyEvent): TButton;
-begin
-  Result := TButton.Create(Self);
-  Result.Parent := AParent;
-  Result.Caption := Caption;
-  Result.AutoSize := True;
-  Result.OnClick := Handler;
-  Result.BorderSpacing.Around := S(2);
-end;
-
-// A labelled row in the editor; rows stack from top to bottom
-function TAiProvidersPanel.AddRow(const Caption: String; Control: TControl; Height: Integer = 0): TPanel;
+procedure TAiProvidersPanel.BuildList;
 var
-  Lbl: TLabel;
+  Left, Buttons: TPanel;
+  Helper: TAiFormRows;
 begin
-  Result := TPanel.Create(Self);
-  Result.Parent := FEditor;
-  Result.BevelOuter := bvNone;
-  Result.Caption := '';
-  if Height = 0 then
-    Height := S(30);
-  // Rows are aligned to the top in the order they are added
-  Result.SetBounds(0, FNextRowTop, FEditor.ClientWidth, Height);
-  Inc(FNextRowTop, Height);
-  Result.Align := alTop;
-  Lbl := TLabel.Create(Self);
-  Lbl.Parent := Result;
-  Lbl.Align := alLeft;
-  Lbl.AutoSize := False;
-  Lbl.Width := S(150); // Final width set by SizeLabelColumn
-  SetLength(FRowLabels, Length(FRowLabels) + 1);
-  FRowLabels[High(FRowLabels)] := Lbl;
-  Lbl.Layout := tlCenter;
-  Lbl.Caption := Caption;
-  Lbl.BorderSpacing.Left := S(6);
-  if Assigned(Control) then begin
-    Control.Parent := Result;
-    Control.Align := alClient;
-    Control.BorderSpacing.Around := S(3);
-    if Control is TWinControl then
-      Lbl.FocusControl := TWinControl(Control);
+  Helper := TAiFormRows.Create(Self, Self);
+  try
+    Left := TPanel.Create(Self);
+    Left.Parent := Self;
+    Left.BevelOuter := bvNone;
+    Left.Caption := '';
+    Left.Align := alLeft;
+    Left.Width := Helper.S(210);
+    Buttons := TPanel.Create(Self);
+    Buttons.Parent := Left;
+    Buttons.BevelOuter := bvNone;
+    Buttons.Caption := '';
+    Buttons.Align := alBottom;
+    Buttons.AutoSize := True;
+    Buttons.ChildSizing.Layout := cclLeftToRightThenTopToBottom;
+    Buttons.ChildSizing.ControlsPerLine := 3;
+    FBtnAdd := Helper.AddButton(Buttons, _('Add'), AddClick);
+    FBtnRemove := Helper.AddButton(Buttons, _('Remove'), RemoveClick);
+    FBtnDefault := Helper.AddButton(Buttons, _('Default'), DefaultClick);
+    FBtnDefault.Hint := _('Use this profile for sessions that do not choose one');
+    FBtnDefault.ShowHint := True;
+    FList := TListBox.Create(Self);
+    FList.Parent := Left;
+    FList.Align := alClient;
+    FList.BorderSpacing.Around := Helper.S(3);
+    FList.OnSelectionChange := ListSelectionChange;
+  finally
+    Helper.Free;
   end;
 end;
 
-// A row whose height follows its wrapped message text
-function TAiProvidersPanel.AddMessageRow(const Caption: String; Message: TLabel): TPanel;
-begin
-  Message.WordWrap := True;
-  Message.AutoSize := True;
-  Result := AddRow(Caption, Message, S(8));
-  Result.AutoSize := True;
-end;
-
-// All row labels as wide as the longest caption, so translations are not cut off
-procedure TAiProvidersPanel.SizeLabelColumn;
+procedure TAiProvidersPanel.BuildEditor;
 var
-  Lbl: TLabel;
-  Widest: Integer;
+  Row: TPanel;
 begin
-  Widest := S(100);
-  if Owner is TCustomForm then begin
-    for Lbl in FRowLabels do
-      Widest := Max(Widest, TCustomForm(Owner).Canvas.TextWidth(Lbl.Caption));
-  end;
-  for Lbl in FRowLabels do
-    Lbl.Width := Widest + S(16);
-end;
-
-procedure TAiProvidersPanel.BuildControls;
-var
-  Left, Buttons, Row, Bar: TPanel;
-begin
-  Left := TPanel.Create(Self);
-  Left.Parent := Self;
-  Left.BevelOuter := bvNone;
-  Left.Caption := '';
-  Left.Align := alLeft;
-  Left.Width := S(210);
-  Buttons := TPanel.Create(Self);
-  Buttons.Parent := Left;
-  Buttons.BevelOuter := bvNone;
-  Buttons.Caption := '';
-  Buttons.Align := alBottom;
-  Buttons.AutoSize := True;
-  Buttons.ChildSizing.Layout := cclLeftToRightThenTopToBottom;
-  Buttons.ChildSizing.ControlsPerLine := 3;
-  FBtnAdd := NewButton(Buttons, _('Add'), AddClick);
-  FBtnRemove := NewButton(Buttons, _('Remove'), RemoveClick);
-  FBtnDefault := NewButton(Buttons, _('Default'), DefaultClick);
-  FBtnDefault.Hint := _('Use this profile for sessions that do not choose one');
-  FBtnDefault.ShowHint := True;
-  FList := TListBox.Create(Self);
-  FList.Parent := Left;
-  FList.Align := alClient;
-  FList.BorderSpacing.Around := S(3);
-  FList.OnSelectionChange := nil;
-  FList.OnClick := ListSelect;
-
   FEditor := TScrollBox.Create(Self);
   FEditor.Parent := Self;
   FEditor.Align := alClient;
   FEditor.BorderStyle := bsNone;
   FEditor.HorzScrollBar.Visible := False;
+  FRows := TAiFormRows.Create(Self, FEditor);
 
   FLabelFileState := TLabel.Create(Self);
-  FLabelFileState.WordWrap := True;
   FLabelFileState.Font.Style := [fsBold];
-  AddRow('', FLabelFileState, S(0)).Visible := False;
-
+  FRows.AddMessageRow('', FLabelFileState);
   FEditName := TEdit.Create(Self);
-  AddRow(_('Name:'), FEditName);
+  FRows.AddRow(_('Name:'), FEditName);
   FEditUrl := TEdit.Create(Self);
-  FEditUrl.TextHint := 'http://localhost:11434/v1';
-  AddRow(_('Base URL:'), FEditUrl);
+  FEditUrl.TextHint := DEFAULTLOCALBASEURL;
+  FRows.AddRow(_('Base URL:'), FEditUrl);
   FComboModel := TComboBox.Create(Self);
   FComboModel.Style := csDropDown;
-  Row := AddRow(_('Model:'), FComboModel);
-  FBtnTest := NewButton(Row, _('Test'), TestClick);
+  Row := FRows.AddRow(_('Model:'), FComboModel);
+  FBtnTest := FRows.AddButton(Row, _('Test'), TestClick);
   FBtnTest.Align := alRight;
   FBtnTest.Hint := _('Connect to the server and list its models');
   FBtnTest.ShowHint := True;
   FLabelTest := TLabel.Create(Self);
-  AddMessageRow('', FLabelTest);
+  FRows.AddMessageRow('', FLabelTest);
 
   FRadioKeySource := TRadioGroup.Create(Self);
   FRadioKeySource.Caption := '';
@@ -232,53 +163,56 @@ begin
   FRadioKeySource.Items.Add(_('None'));
   FRadioKeySource.Items.Add(_('Environment variable'));
   FRadioKeySource.Items.Add(_('Keychain entry'));
-  AddRow(_('API key:'), FRadioKeySource, S(44));
+  FRows.AddRow(_('API key:'), FRadioKeySource, FRows.S(44));
   FEditKeyName := TEdit.Create(Self);
-  AddRow(_('Variable or entry name:'), FEditKeyName);
-  Bar := TPanel.Create(Self);
-  Bar.BevelOuter := bvNone;
-  Bar.Caption := '';
-  Bar.ChildSizing.Layout := cclLeftToRightThenTopToBottom;
-  Bar.ChildSizing.ControlsPerLine := 2;
-  AddRow('', Bar, S(34));
-  FBtnStoreKey := NewButton(Bar, _('Store key...'), StoreKeyClick);
-  FBtnRemoveKey := NewButton(Bar, _('Remove key'), RemoveKeyClick);
+  FRows.AddRow(_('Variable or entry name:'), FEditKeyName);
+  Row := FRows.AddButtonRow('');
+  FBtnCheckKey := FRows.AddButton(Row, _('Check'), CheckKeyClick);
+  FBtnCheckKey.Hint := _('Look the key up in the keychain');
+  FBtnCheckKey.ShowHint := True;
+  FBtnStoreKey := FRows.AddButton(Row, _('Store key...'), StoreKeyClick);
+  FBtnRemoveKey := FRows.AddButton(Row, _('Remove key'), RemoveKeyClick);
   FLabelKeyStatus := TLabel.Create(Self);
-  AddMessageRow(_('Key status:'), FLabelKeyStatus);
+  FRows.AddMessageRow(_('Key status:'), FLabelKeyStatus);
 
   FSpinTemperature := TFloatSpinEdit.Create(Self);
   FSpinTemperature.MinValue := 0;
   FSpinTemperature.MaxValue := 2;
   FSpinTemperature.Increment := 0.1;
   FSpinTemperature.DecimalPlaces := 2;
-  AddRow(_('Temperature:'), FSpinTemperature);
+  Row := FRows.AddRow(_('Temperature:'), FSpinTemperature);
+  FCheckServerTemperature := TCheckBox.Create(Self);
+  FCheckServerTemperature.Parent := Row;
+  FCheckServerTemperature.Caption := _('Server default');
+  FCheckServerTemperature.Align := alRight;
+  FCheckServerTemperature.BorderSpacing.Around := FRows.S(3);
   FSpinContext := TSpinEdit.Create(Self);
   FSpinContext.MinValue := 1000;
   FSpinContext.MaxValue := 1000000;
   FSpinContext.Increment := 1000;
-  AddRow(_('Schema context (characters):'), FSpinContext);
+  FRows.AddRow(_('Schema context (characters):'), FSpinContext);
   FSpinTimeout := TSpinEdit.Create(Self);
   FSpinTimeout.MinValue := 5;
   FSpinTimeout.MaxValue := 3600;
-  AddRow(_('Read timeout (seconds):'), FSpinTimeout);
+  FRows.AddRow(_('Read timeout (seconds):'), FSpinTimeout);
   FCheckUntrusted := TCheckBox.Create(Self);
   FCheckUntrusted.Caption := _('Accept untrusted HTTPS certificates (self-signed servers only)');
-  AddRow('', FCheckUntrusted);
+  FRows.AddRow('', FCheckUntrusted);
   FEditCaFile := TFileNameEdit.Create(Self);
   FEditCaFile.Filter := _('Certificates') + ' (*.pem;*.crt)|*.pem;*.crt|' + _('All files') + '|*';
-  AddRow(_('Extra CA file:'), FEditCaFile);
+  FRows.AddRow(_('Extra CA file:'), FEditCaFile);
   FLabelProblems := TLabel.Create(Self);
   FLabelProblems.Font.Color := clRed;
-  AddMessageRow('', FLabelProblems);
-  SizeLabelColumn;
+  FRows.AddMessageRow('', FLabelProblems);
+  FRows.SizeLabelColumn;
 
   FEditName.OnChange := EditorChanged;
   FEditUrl.OnChange := EditorChanged;
   FComboModel.OnChange := EditorChanged;
   FEditKeyName.OnChange := EditorChanged;
-  FEditKeyName.OnExit := KeySourceChanged;
-  FRadioKeySource.OnClick := KeySourceChanged;
+  FRadioKeySource.OnClick := KeySourceClicked;
   FSpinTemperature.OnChange := EditorChanged;
+  FCheckServerTemperature.OnChange := EditorChanged;
   FSpinContext.OnChange := EditorChanged;
   FSpinTimeout.OnChange := EditorChanged;
   FCheckUntrusted.OnChange := EditorChanged;
@@ -303,7 +237,7 @@ begin
     FList.Items.Clear;
     for i:=0 to FProfiles.Count-1 do begin
       Text := FProfiles[i].Name;
-      if Text.Trim = '' then
+      if Trim(Text) = '' then
         Text := _('(unnamed)');
       if SameText(FProfiles[i].Id, FProfiles.DefaultId) then
         Text := DEFAULTMARK + Text;
@@ -319,38 +253,60 @@ begin
   FList.ItemIndex := Keep;
 end;
 
+procedure TAiProvidersPanel.ClearEditor;
+begin
+  FEditName.Text := '';
+  FEditUrl.Text := '';
+  FComboModel.Items.Clear;
+  FComboModel.Text := '';
+  FEditKeyName.Text := '';
+  FEditCaFile.Text := '';
+  FLabelTest.Caption := '';
+  FLabelKeyStatus.Caption := '';
+  FLabelProblems.Caption := '';
+end;
+
 procedure TAiProvidersPanel.ShowProfile;
 var
   i: Integer;
   P: TAiProfile;
 begin
+  // A Test still running belongs to the previously shown profile
+  FFetch.Cancel;
+  FBtnTest.Enabled := True;
   i := SelectedIndex;
   FEditor.Enabled := (i >= 0) and (FReadOnlyReason = '');
   FBtnRemove.Enabled := FEditor.Enabled;
   FBtnDefault.Enabled := FEditor.Enabled;
   FBtnAdd.Enabled := FReadOnlyReason = '';
-  if i < 0 then
-    Exit;
-  P := FProfiles[i];
   FUpdating := True;
   try
-    FEditName.Text := P.Name;
-    FEditUrl.Text := P.BaseUrl;
-    FComboModel.Items.Clear;
-    FComboModel.Text := P.Model;
-    FRadioKeySource.ItemIndex := Ord(P.KeySource);
-    FEditKeyName.Text := P.KeyName;
-    FSpinTemperature.Value := P.Temperature;
-    FSpinContext.Value := P.MaxContextChars;
-    FSpinTimeout.Value := P.IoTimeoutSec;
-    FCheckUntrusted.Checked := P.AllowUntrustedTls;
-    FEditCaFile.Text := P.ExtraCaFile;
-    FLabelTest.Caption := '';
+    if i < 0 then
+      ClearEditor
+    else begin
+      P := FProfiles[i];
+      FEditName.Text := P.Name;
+      FEditUrl.Text := P.BaseUrl;
+      FComboModel.Items.Clear;
+      FComboModel.Text := P.Model;
+      FRadioKeySource.ItemIndex := Ord(P.KeySource);
+      FEditKeyName.Text := P.KeyName;
+      FCheckServerTemperature.Checked := P.Temperature < 0;
+      if P.Temperature >= 0 then
+        FSpinTemperature.Value := P.Temperature
+      else
+        FSpinTemperature.Value := DEFAULTTEMPERATURE;
+      FSpinContext.Value := P.MaxContextChars;
+      FSpinTimeout.Value := P.IoTimeoutSec;
+      FCheckUntrusted.Checked := P.AllowUntrustedTls;
+      FEditCaFile.Text := P.ExtraCaFile;
+      FLabelTest.Caption := '';
+      FLabelProblems.Caption := ProfileProblemsText(ValidateAiProfile(P));
+    end;
   finally
     FUpdating := False;
   end;
-  FLabelProblems.Caption := ProfileProblemsText(ValidateAiProfile(P));
-  RefreshKeyStatus;
+  UpdateKeyControls;
 end;
 
 procedure TAiProvidersPanel.EditorChanged(Sender: TObject);
@@ -368,7 +324,10 @@ begin
   if FRadioKeySource.ItemIndex >= 0 then
     P.KeySource := TAiKeySource(FRadioKeySource.ItemIndex);
   P.KeyName := Trim(FEditKeyName.Text);
-  if FSpinTemperature.Value >= 0 then
+  // Negative means "server default", which the spin edit cannot show
+  if FCheckServerTemperature.Checked then
+    P.Temperature := -1
+  else
     P.Temperature := FSpinTemperature.Value;
   P.MaxContextChars := FSpinContext.Value;
   P.IoTimeoutSec := FSpinTimeout.Value;
@@ -384,40 +343,50 @@ begin
       FUpdating := False;
     end;
   end;
+  if (Sender = FEditKeyName) or (Sender = FRadioKeySource) or (Sender = FCheckServerTemperature) then
+    UpdateKeyControls;
   SetModified;
 end;
 
-procedure TAiProvidersPanel.KeySourceChanged(Sender: TObject);
+procedure TAiProvidersPanel.KeySourceClicked(Sender: TObject);
 begin
-  EditorChanged(Sender);
-  RefreshKeyStatus;
+  // TRadioGroup has no OnChange; OnClick also fires when the item is set in code
+  if not FUpdating then
+    EditorChanged(Sender);
 end;
 
-procedure TAiProvidersPanel.RefreshKeyStatus;
+// Enables the key controls. The status is shown right away only for environment variables:
+// reading the keychain may prompt or stall, so that waits for a click.
+procedure TAiProvidersPanel.UpdateKeyControls;
 var
   i: Integer;
-  Key, Problem: String;
-  KeyResult: TAiKeyResult;
+  Source: TAiKeySource;
 begin
+  FSpinTemperature.Enabled := not FCheckServerTemperature.Checked;
   i := SelectedIndex;
-  FEditKeyName.Enabled := (i >= 0) and (FProfiles[i].KeySource <> ksNone);
-  FBtnStoreKey.Enabled := (i >= 0) and (FProfiles[i].KeySource = ksKeychain);
-  FBtnRemoveKey.Enabled := FBtnStoreKey.Enabled;
-  if i < 0 then begin
-    FLabelKeyStatus.Caption := '';
-    Exit;
-  end;
-  if (FProfiles[i].KeySource <> ksNone) and (FProfiles[i].KeyName = '') then begin
-    FLabelKeyStatus.Caption := '';
-    Exit;
-  end;
-  KeyResult := ResolveApiKey(FProfiles[i], Key, Problem);
-  // Only the status is shown, never the key
-  Key := '';
-  FLabelKeyStatus.Caption := KeyResultText(KeyResult, FProfiles[i], Problem);
+  if i < 0 then
+    Source := ksNone
+  else
+    Source := FProfiles[i].KeySource;
+  FEditKeyName.Enabled := Source <> ksNone;
+  FBtnCheckKey.Enabled := (Source = ksKeychain) and (FEditKeyName.Text <> '');
+  FBtnStoreKey.Enabled := FBtnCheckKey.Enabled;
+  FBtnRemoveKey.Enabled := FBtnCheckKey.Enabled;
+  if (i < 0) or ((Source <> ksNone) and (FProfiles[i].KeyName = '')) then
+    FLabelKeyStatus.Caption := ''
+  else if Source = ksKeychain then
+    FLabelKeyStatus.Caption := f_('Keychain entry "%s", not checked yet.', [FProfiles[i].KeyName])
+  else
+    ShowKeyStatus;
 end;
 
-procedure TAiProvidersPanel.ListSelect(Sender: TObject);
+procedure TAiProvidersPanel.ShowKeyStatus;
+begin
+  if SelectedIndex >= 0 then
+    FLabelKeyStatus.Caption := CheckKeyStatus(FProfiles[SelectedIndex]);
+end;
+
+procedure TAiProvidersPanel.ListSelectionChange(Sender: TObject; User: Boolean);
 begin
   if not FUpdating then
     ShowProfile;
@@ -429,8 +398,13 @@ var
 begin
   P := NewAiProfile(_('New provider'));
   FProfiles.Add(P);
-  FillList;
-  FList.ItemIndex := FProfiles.Count - 1;
+  FUpdating := True;
+  try
+    FillList;
+    FList.ItemIndex := FProfiles.Count - 1;
+  finally
+    FUpdating := False;
+  end;
   ShowProfile;
   SetModified;
   FEditName.SetFocus;
@@ -440,15 +414,23 @@ end;
 procedure TAiProvidersPanel.RemoveClick(Sender: TObject);
 var
   i: Integer;
+  Text: String;
 begin
   i := SelectedIndex;
   if i < 0 then
     Exit;
-  if MessageDlg(f_('Remove the provider "%s"? Sessions using it will ask for another provider.',
-    [FProfiles[i].Name]), mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+  Text := f_('Remove the provider "%s"? Sessions using it will ask for another provider.', [FProfiles[i].Name]);
+  if FProfiles[i].KeySource = ksKeychain then
+    Text := Text + LineEnding + f_('Its keychain entry "%s" is kept; use "Remove key" first to delete it.', [FProfiles[i].KeyName]);
+  if MessageDlg(Text, mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
     Exit;
   FProfiles.Delete(FProfiles[i].Id);
-  FillList;
+  FUpdating := True;
+  try
+    FillList;
+  finally
+    FUpdating := False;
+  end;
   ShowProfile;
   SetModified;
 end;
@@ -461,7 +443,12 @@ begin
   if i < 0 then
     Exit;
   FProfiles.DefaultId := FProfiles[i].Id;
-  FillList;
+  FUpdating := True;
+  try
+    FillList;
+  finally
+    FUpdating := False;
+  end;
   SetModified;
 end;
 
@@ -482,6 +469,7 @@ begin
   FLabelTest.Caption := _('Connecting...');
   FBtnTest.Enabled := False;
   FFetch.Start(FProfiles[i], Key, TestDone);
+  Key := '';
 end;
 
 procedure TAiProvidersPanel.TestDone(Success: Boolean; const Models: TStringArray; const Message: String);
@@ -502,54 +490,25 @@ begin
   finally
     FUpdating := False;
   end;
-  if Current = '' then
+  if (Current = '') and FComboModel.IsVisible then
     FComboModel.DroppedDown := True;
 end;
 
-procedure TAiProvidersPanel.StoreKeyClick(Sender: TObject);
-var
-  i: Integer;
-  Key, Problem: String;
+procedure TAiProvidersPanel.CheckKeyClick(Sender: TObject);
 begin
-  i := SelectedIndex;
-  if (i < 0) or (FProfiles[i].KeyName = '') then begin
-    MessageDlg(_('Enter a name for the keychain entry first.'), mtInformation, [mbOK], 0);
-    Exit;
-  end;
-  {$IFDEF DARWIN}
-  Clipboard.AsText := MacStoreCommand(FProfiles[i].KeyName);
-  MessageDlg(_('Run this command in Terminal, which then asks for the key. It was copied to the clipboard:')
-    + LineEnding + LineEnding + MacStoreCommand(FProfiles[i].KeyName), mtInformation, [mbOK], 0);
-  {$ELSE}
-  Key := '';
-  if not InputQuery(_('Store key'), f_('API key for "%s":', [FProfiles[i].Name]), True, Key) then
-    Exit;
-  if Key.Trim = '' then
-    Exit;
-  if Assigned(Keychain) and Keychain.Store(FProfiles[i].KeyName, Key.Trim, Problem) then
-    Key := ''
-  else begin
-    Key := '';
-    MessageDlg(KeyResultText(krKeychainError, FProfiles[i], Problem), mtError, [mbOK], 0);
-  end;
-  {$ENDIF}
-  RefreshKeyStatus;
+  ShowKeyStatus;
+end;
+
+procedure TAiProvidersPanel.StoreKeyClick(Sender: TObject);
+begin
+  if SelectedIndex >= 0 then
+    FLabelKeyStatus.Caption := StoreKeyInteractive(FProfiles[SelectedIndex]);
 end;
 
 procedure TAiProvidersPanel.RemoveKeyClick(Sender: TObject);
-var
-  i: Integer;
-  Problem: String;
 begin
-  i := SelectedIndex;
-  if (i < 0) or (FProfiles[i].KeyName = '') or not Assigned(Keychain) then
-    Exit;
-  if MessageDlg(f_('Remove the keychain entry "%s"?', [FProfiles[i].KeyName]),
-    mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
-    Exit;
-  if not Keychain.Remove(FProfiles[i].KeyName, Problem) then
-    MessageDlg(KeyResultText(krKeychainError, FProfiles[i], Problem), mtError, [mbOK], 0);
-  RefreshKeyStatus;
+  if SelectedIndex >= 0 then
+    FLabelKeyStatus.Caption := RemoveKeyInteractive(FProfiles[SelectedIndex]);
 end;
 
 procedure TAiProvidersPanel.SetModified;
@@ -571,12 +530,14 @@ begin
     else FReadOnlyReason := '';
   end;
   FLabelFileState.Caption := FReadOnlyReason;
-  FLabelFileState.Parent.Visible := FReadOnlyReason <> '';
-  if FLabelFileState.Parent.Visible then
-    FLabelFileState.Parent.Height := S(50);
   // A seeded starter profile is new: save it with the next Apply
   FModified := State = plrMissing;
-  FillList;
+  FUpdating := True;
+  try
+    FillList;
+  finally
+    FUpdating := False;
+  end;
   ShowProfile;
 end;
 

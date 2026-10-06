@@ -213,6 +213,7 @@ begin
     Result := FStore(@FSchema, Table, nil, PAnsiChar(Lbl), PAnsiChar(Sec), nil, @Error) <> 0;
   finally
     FHashTableUnref(Table);
+    // Best effort: other copies of the key may remain in managed strings
     if Length(Sec) > 0 then
       FillChar(Sec[1], Length(Sec), 0);
   end;

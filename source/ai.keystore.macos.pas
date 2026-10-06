@@ -58,9 +58,15 @@ begin
     Proc.Executable := SECURITYTOOL;
     for Arg in Args do
       Proc.Parameters.Add(Arg);
-    Proc.Options := [poUsePipes, poWaitOnExit, poNoConsole];
+    // stderr merged into stdout, and read until the process ends, so no pipe can fill up
+    Proc.Options := [poUsePipes, poStderrToOutPut, poNoConsole];
     Proc.Execute;
-    Buffer.CopyFrom(Proc.Output, 0);
+    repeat
+      if Proc.Output.NumBytesAvailable > 0 then
+        Buffer.CopyFrom(Proc.Output, Proc.Output.NumBytesAvailable)
+      else
+        Sleep(5);
+    until (not Proc.Running) and (Proc.Output.NumBytesAvailable = 0);
     Output := Buffer.DataString;
     Result := Proc.ExitStatus;
   finally

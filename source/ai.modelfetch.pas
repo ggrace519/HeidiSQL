@@ -20,6 +20,7 @@ type
     FTimer: TTimer;
     FMailbox: IAiMailbox;
     FProfile: TAiProfile;
+    FKey: String;
     FOnDone: TAiModelFetchDone;
     procedure TimerTick(Sender: TObject);
   public
@@ -55,6 +56,8 @@ procedure TAiModelFetch.Start(const Profile: TAiProfile; const Key: String; OnDo
 begin
   Cancel;
   FProfile := Profile;
+  // Kept only to remove it from server error texts, which some providers echo it into
+  FKey := Key;
   FOnDone := OnDone;
   FMailbox := NewAiMailbox;
   StartAiRequest(ModelsRequestSpec(Profile, Key), FMailbox);
@@ -68,6 +71,7 @@ begin
     FMailbox.Cancel;
   FMailbox := nil;
   FOnDone := nil;
+  FKey := '';
 end;
 
 function TAiModelFetch.Running: Boolean;
@@ -80,18 +84,23 @@ var
   Mailbox: IAiMailbox;
   Done: TAiModelFetchDone;
   Models: TStringArray;
+  Detail: String;
 begin
   if (not Assigned(FMailbox)) or (not FMailbox.Finished) then
     Exit;
   FTimer.Enabled := False;
   Mailbox := FMailbox;
   Done := FOnDone;
+  Detail := Mailbox.ErrorMessage;
+  if Length(FKey) >= 8 then
+    Detail := StringReplace(Detail, FKey, '***', [rfReplaceAll]);
   FMailbox := nil;
   FOnDone := nil;
+  FKey := '';
   if not Assigned(Done) then
     Exit;
   if Mailbox.ErrorKind <> ekNone then
-    Done(False, nil, RequestErrorText(Mailbox.ErrorKind, Mailbox.HttpStatus, Mailbox.ErrorMessage, FProfile))
+    Done(False, nil, RequestErrorText(Mailbox.ErrorKind, Mailbox.HttpStatus, Detail, FProfile))
   else begin
     Models := DecodeModelList(Mailbox.Body);
     if Length(Models) = 0 then

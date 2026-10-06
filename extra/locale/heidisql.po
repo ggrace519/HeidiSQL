@@ -7067,3 +7067,12 @@ msgstr "Local Ollama"
 
 msgid "AI providers"
 msgstr "AI providers"
+
+msgid "Look the key up in the keychain"
+msgstr "Look the key up in the keychain"
+
+msgid "Keychain entry \"%s\", not checked yet."
+msgstr "Keychain entry \"%s\", not checked yet."
+
+msgid "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
+msgstr "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."

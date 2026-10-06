@@ -109,11 +109,25 @@ begin
   Result := FLoaded;
 end;
 
+// UTF-16LE text of an ASCII key: even length and every second byte zero
+function LooksLikeUtf16(const Bytes: RawByteString): Boolean;
+var
+  i: Integer;
+begin
+  Result := (Length(Bytes) >= 2) and (Length(Bytes) mod 2 = 0);
+  i := 2;
+  while Result and (i <= Length(Bytes)) do begin
+    Result := Bytes[i] = #0;
+    Inc(i, 2);
+  end;
+end;
+
 function TWindowsKeychain.Lookup(const Account: String; out Secret: String; out Problem: String): TAiKeyResult;
 var
   Name: UnicodeString;
   Cred: PCredentialW;
   Bytes: RawByteString;
+  Wide: UnicodeString;
 begin
   Secret := '';
   Problem := '';
@@ -128,12 +142,23 @@ begin
     Exit(krKeychainError);
   end;
   try
-    // Stored as UTF-8 bytes by Store
     SetLength(Bytes, Cred^.CredentialBlobSize);
     if Cred^.CredentialBlobSize > 0 then
       Move(Cred^.CredentialBlob^, Bytes[1], Cred^.CredentialBlobSize);
-    SetCodePage(Bytes, CP_UTF8, False);
-    Secret := String(Bytes);
+    if LooksLikeUtf16(Bytes) then begin
+      // Written by another tool, e.g. cmdkey or the Credential Manager window
+      SetLength(Wide, Length(Bytes) div 2);
+      Move(Bytes[1], Wide[1], Length(Bytes));
+      Secret := String(Wide);
+      if Length(Wide) > 0 then
+        FillChar(Wide[1], Length(Wide) * SizeOf(WideChar), 0);
+    end else begin
+      // Stored as UTF-8 by Store
+      SetCodePage(Bytes, CP_UTF8, False);
+      Secret := String(Bytes);
+    end;
+    if Length(Bytes) > 0 then
+      FillChar(Bytes[1], Length(Bytes), 0);
   finally
     FCredFree(Cred);
   end;
@@ -163,6 +188,7 @@ begin
   Result := FCredWrite(@Cred, 0);
   if not Result then
     Problem := LastErrorText;
+  // Best effort: other copies of the key may remain in managed strings
   if Length(Bytes) > 0 then
     FillChar(Bytes[1], Length(Bytes), 0);
 end;

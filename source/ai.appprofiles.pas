@@ -19,7 +19,7 @@ procedure SaveAppProfiles(List: TAiProfileList);
 implementation
 
 uses
-  apphelpers;
+  apphelpers; // AppSettings
 
 const
   STARTERMODEL = 'qwen2.5:7b';
@@ -35,7 +35,8 @@ var
 begin
   Result := List.LoadFromFile(AppProfilesFileName);
   if Result = plrMissing then begin
-    Starter := NewAiProfile(_('Local Ollama'));
+    // Not translated: the name is saved, and the language may change later
+    Starter := NewAiProfile('Local Ollama');
     Starter.Model := STARTERMODEL;
     List.Add(Starter);
   end;
