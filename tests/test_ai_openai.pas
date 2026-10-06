@@ -70,8 +70,13 @@ begin
   Result := TStreamCollector.Create;
   Parser := TSseParser.Create(Result.OnEvent);
   try
-    Parser.Feed(ReadFixture(Name));
-    Parser.Finish;
+    try
+      Parser.Feed(ReadFixture(Name));
+      Parser.Finish;
+    except
+      Result.Free;
+      raise;
+    end;
   finally
     Parser.Free;
   end;

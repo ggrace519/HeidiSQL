@@ -11,7 +11,8 @@ uses
   // independent of the system locale. Without it, fpjson turns non-ASCII text into "?".
   LazUTF8,
   Classes, consoletestrunner,
-  test_forkpaths, test_forkupdate, test_ai_sse, test_ai_openai, test_ai_sqlextract, test_ai_context, test_ai_prompts, test_ai_profiles;
+  test_forkpaths, test_forkupdate, test_ai_sse, test_ai_openai, test_ai_sqlextract, test_ai_context, test_ai_prompts, test_ai_profiles,
+  test_ai_conversation_keystore;
 
 var
   App: TTestRunner;
