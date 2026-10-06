@@ -21,6 +21,7 @@ type
   private
     FListenSocket: TSocket;
     FClientSocket: TSocket; // Connection being served, -1 if none; shut down by Stop
+    FListenClosed: Boolean;
     FPort: Word;
     FResponse: TMockResponse;
     FLastRequest: RawByteString;
@@ -125,8 +126,14 @@ begin
     Exit;
   FStopEvent.SetEvent;
   Terminate;
-  // Wakes a blocked accept, and a read on a connection whose client never sends a request
+  // Wakes a blocked accept, and a read on a connection whose client never sends a request.
+  // On Windows only closing the listening socket wakes accept; on Unix it is closed by the
+  // thread itself, so the descriptor cannot be reused while accept still uses it.
   fpShutdown(FListenSocket, 2);
+  {$IFDEF WINDOWS}
+  CloseSocket(FListenSocket);
+  FListenClosed := True;
+  {$ENDIF}
   FLock.Enter;
   try
     if FClientSocket >= 0 then
@@ -226,7 +233,8 @@ begin
       CloseSocket(Client);
     end;
   end;
-  CloseSocket(FListenSocket);
+  if not FListenClosed then
+    CloseSocket(FListenSocket);
 end;
 
 end.

@@ -79,6 +79,7 @@ jobs:
             make build-win64
 
         - name: Run unit tests (Windows)
+          timeout-minutes: 10
           if: ${{ matrix.operating-system == 'windows-latest' }}
           shell: pwsh
           # make has no POSIX shell here to find lazbuild, so the Lazarus folder is passed in
@@ -107,6 +108,7 @@ jobs:
             path: out/win64/heidisql.exe
 
         - name: Run unit tests (Ubuntu)
+          timeout-minutes: 10
           if: ${{ matrix.operating-system == 'ubuntu-latest' }}
           run: make test
 
