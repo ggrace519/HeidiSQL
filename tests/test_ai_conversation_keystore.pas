@@ -41,7 +41,10 @@ type
   end;
 
   TAiKeystoreTest = class(TTestCase)
+  private
+    FSavedKeychain: IAiKeychain;
   protected
+    procedure SetUp; override;
     procedure TearDown; override;
   published
     procedure NoKeyNeeded;
@@ -260,9 +263,16 @@ begin
   Result.KeyName := KeyName;
 end;
 
+procedure TAiKeystoreTest.SetUp;
+begin
+  // The platform backend registered at startup; these tests replace it with fakes
+  FSavedKeychain := Keychain;
+end;
+
 procedure TAiKeystoreTest.TearDown;
 begin
-  RegisterKeychain(nil);
+  RegisterKeychain(FSavedKeychain);
+  FSavedKeychain := nil;
 end;
 
 procedure TAiKeystoreTest.NoKeyNeeded;
