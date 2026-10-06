@@ -78,3 +78,19 @@ service. `ai-v` tags keep fork releases apart from upstream `v12.x` tags mirrore
   were replaced by ones that put the instruction after the SQL and name common rewrites.
 - **Timeouts:** the default read timeout is 300 s, as an uncached local prompt of 2.4k tokens
   took 36 s before the first token.
+
+## ADR-007: Network worker, cancellation and TLS verification
+**Date:** 2026-10-05 · **Status:** accepted
+
+- **Worker and mailbox:** each request runs on its own thread, which only touches an immutable
+  request spec and a lock-guarded, reference-counted mailbox. The UI drains the mailbox with a
+  timer; nothing is queued to UI objects that could be gone. Cancel finishes the mailbox at once.
+- **Cancel:** shuts the socket down at the file descriptor, which wakes a blocked receive,
+  including TLS reads. SSL_shutdown is never called from another thread. SIGPIPE is ignored
+  process-wide, as OpenSSL's close_notify on a shut-down socket otherwise ended the process.
+- **TLS:** FPC 3.2.2's OpenSSL handler verifies neither certificate nor host name. The fork's
+  handler does both, with the system's trusted certificates (Windows ROOT store imported) plus an
+  optional extra CA file. Untrusted certificates must be allowed explicitly per profile, for
+  local servers with self-signed certificates.
+- **Redirects are not followed:** the Authorization header would go to another host. The error
+  names the redirect target so the user can correct the base URL.

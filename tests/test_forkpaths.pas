@@ -26,13 +26,13 @@ uses
 
 procedure TForkPathsTest.SiblingFolderWithTrailingDelimiter;
 begin
-  AssertEquals('/home/u/.config/heidisql-ai/',
+  AssertEquals('/home/u/.config/heidisql-ai' + PathDelim,
     SiblingConfigDir('/home/u/.config/heidisql/', 'heidisql-ai'));
 end;
 
 procedure TForkPathsTest.SiblingFolderWithoutTrailingDelimiter;
 begin
-  AssertEquals('/home/u/.config/heidisql-ai/',
+  AssertEquals('/home/u/.config/heidisql-ai' + PathDelim,
     SiblingConfigDir('/home/u/.config/heidisql', 'heidisql-ai'));
 end;
 
