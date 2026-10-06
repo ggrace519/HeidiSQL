@@ -11,7 +11,10 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 - Translations in a local build: `make copy-locale` copies the .mo files to `out/locale/`, but the
   app looks next to the executable, so also run `ln -sfn ../locale out/gtk2/locale`. Then
   `LANG=de_DE.UTF-8 LANGUAGE=de ./out/gtk2/heidisql` starts in German.
-- No tests yet. A fpcunit test project with `make test` arrives with the first AI core units.
+- Tests: `make test` builds `tests/heidisql_tests.lpr` (fpcunit console runner) with plain `fpc`
+  and runs all tests; exit code is non-zero on failures. CI runs it on Ubuntu. Tests cover only
+  LCL-free units; fixtures are in `tests/fixtures/`. Register each new test unit in the `uses` of
+  `tests/heidisql_tests.lpr`.
 
 ## Branches
 - `lazarus` = released branch, where upstream is merged in. `develop` = integration branch.

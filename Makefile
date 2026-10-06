@@ -29,7 +29,7 @@ endif
 
 VERSION := $(shell echo $(tag) | sed "s/v//")
 
-.PHONY: all clean copy-locale build-mo build-win64 run-win64 build-gtk2 run-gtk2 build-qt5 run-qt5 build-qt6 run-qt6 build-macos deb-package tar-gtk2 tar-qt5 tar-qt6
+.PHONY: all clean test copy-locale build-mo build-win64 run-win64 build-gtk2 run-gtk2 build-qt5 run-qt5 build-qt6 run-qt6 build-macos deb-package tar-gtk2 tar-qt5 tar-qt6
 
 all: clean build-win64 build-gtk2 build-qt5 build-qt6 build-macos deb-package tar-gtk2 tar-qt5 tar-qt6
 
@@ -38,6 +38,13 @@ clean:
 	@rm -rf ./bin/lib/x86_64-linux/*
 	@rm -f ./out/win64/* ./out/gtk2/* ./out/qt5/* ./out/qt6/* ./out/macos/*
 	@rm -rf ./deb ./rpm ./tar ./dist
+
+# Unit tests for the LCL-free units (forkpaths, forkupdate, ai.*). Exit code is non-zero on failures.
+test:
+	@echo "=== Building and running unit tests"
+	@mkdir -p ./out/tests ./bin/tests
+	fpc -B -Mdelphi -Sh -Fu./source -Fi./source -Fu./tests -FU./bin/tests -FE./out/tests ./tests/heidisql_tests.lpr
+	./out/tests/heidisql_tests --all --format=plain
 
 copy-locale:
 	@echo "=== Copying .mo from extra/locale to out/locale"

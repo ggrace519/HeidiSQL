@@ -1,0 +1,14 @@
+[
+  {"tag_name": "v12.21", "draft": false, "prerelease": false, "name": "HeidiSQL v12.21",
+   "html_url": "https://example.invalid/v12.21", "published_at": "2026-07-01T00:00:00Z", "body": null},
+  {"tag_name": "ai-v0.10.0", "draft": false, "prerelease": true, "name": "Preview",
+   "html_url": "https://example.invalid/ai-v0.10.0", "published_at": "2026-10-02T00:00:00Z", "body": ""},
+  {"tag_name": "ai-v0.2.0", "draft": false, "prerelease": false, "name": null,
+   "html_url": "https://example.invalid/ai-v0.2.0", "published_at": "2026-09-01T00:00:00Z", "body": "Second"},
+  {"tag_name": "ai-v0.9.1", "draft": false, "prerelease": false, "name": "AI Edition 0.9.1",
+   "html_url": "https://example.invalid/ai-v0.9.1", "published_at": "2026-10-01T12:30:00Z", "body": "Notes 0.9.1"},
+  {"tag_name": "ai-v1.0.0-rc1", "draft": false, "prerelease": false, "name": "RC tagged as release",
+   "html_url": "https://example.invalid/ai-v1.0.0-rc1", "published_at": "2026-10-03T00:00:00Z", "body": ""},
+  {"tag_name": "ai-v2.0.0", "draft": true, "prerelease": false,
+   "html_url": "https://example.invalid/ai-v2.0.0"}
+]
