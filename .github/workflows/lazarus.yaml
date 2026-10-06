@@ -11,12 +11,12 @@ permissions:
 on:
 
   push:
-    branches: [ lazarus ]
+    branches: [ lazarus, develop ]
     tags: [ "*" ]
-    paths-ignore: [ "README.md", "LICENSE", "CHANGELOG.md", ".github/cliff.toml" ]
+    paths-ignore: [ "README.md", "LICENSE", "CHANGELOG.md", ".github/cliff.toml", "AI-EDITION.md", "CHANGELOG-AI.md", "DECISIONS.md", "CLAUDE.md" ]
 
   pull_request:
-    branches: [ lazarus ]
+    branches: [ lazarus, develop ]
 
 jobs:
 
