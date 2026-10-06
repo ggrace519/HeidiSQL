@@ -32,7 +32,15 @@ type
   TAiProfileProblem = (ppNoName, ppBadUrl, ppNoModel, ppNoKeyName, ppContextSize, ppTimeout);
   TAiProfileProblems = set of TAiProfileProblem;
 
-  TAiProfilesLoadResult = (plrOk, plrMissing, plrCorrupt, plrNewerVersion);
+  TAiProfilesLoadResult = (plrOk, plrMissing, plrUnreadable, plrCorrupt, plrNewerVersion);
+
+  TAiProfileMatch = (
+    pmExact,    // The requested profile
+    pmDefault,  // No profile requested: the default profile
+    pmMissing,  // The requested profile no longer exists. Profile is the default, but the UI must
+                // ask before using it, as it may send data to a different provider.
+    pmNone      // No profiles at all
+  );
 
   TAiProfileList = class
   private
@@ -44,13 +52,12 @@ type
     function LoadFromJson(const Json: String): TAiProfilesLoadResult;
     function ToJson: String;
     function LoadFromFile(const Filename: String): TAiProfilesLoadResult;
-    // Writes to a temporary file first, then replaces the target, so a crash cannot leave a
-    // half-written file
+    // Writes and flushes a temporary file first, then replaces the target, so a crash cannot
+    // leave a half-written file. Raises EInOutError / EFCreateError on failure.
     procedure SaveToFile(const Filename: String);
     function IndexOfId(const Id: String): Integer;
-    // Profile for a session's stored id; falls back to the default profile for an empty or
-    // unknown id. Returns False if there is no usable profile at all.
-    function Resolve(const Id: String; out Profile: TAiProfile): Boolean;
+    // Profile for a session's stored id, see TAiProfileMatch. Does not validate the profile.
+    function Resolve(const Id: String; out Profile: TAiProfile): TAiProfileMatch;
     function Add(const Profile: TAiProfile): Integer;
     procedure Update(const Profile: TAiProfile);
     procedure Delete(const Id: String);
@@ -72,6 +79,7 @@ function ValidateAiProfile(const Profile: TAiProfile): TAiProfileProblems;
 implementation
 
 uses
+  {$IFDEF UNIX} Unix, {$ENDIF}
   Classes, fpjson, jsonparser;
 
 const
@@ -170,20 +178,26 @@ begin
   Result := -1;
 end;
 
-function TAiProfileList.Resolve(const Id: String; out Profile: TAiProfile): Boolean;
+function TAiProfileList.Resolve(const Id: String; out Profile: TAiProfile): TAiProfileMatch;
 var
   i: Integer;
 begin
+  Profile := Default(TAiProfile);
+  if Length(FItems) = 0 then
+    Exit(pmNone);
   i := IndexOfId(Id);
+  if i >= 0 then begin
+    Profile := FItems[i];
+    Exit(pmExact);
+  end;
+  i := IndexOfId(FDefaultId);
   if i < 0 then
-    i := IndexOfId(FDefaultId);
-  if (i < 0) and (Length(FItems) > 0) then
     i := 0;
-  Result := i >= 0;
-  if Result then
-    Profile := FItems[i]
+  Profile := FItems[i];
+  if Id.Trim = '' then
+    Result := pmDefault
   else
-    Profile := Default(TAiProfile);
+    Result := pmMissing;
 end;
 
 function TAiProfileList.Add(const Profile: TAiProfile): Integer;
@@ -266,7 +280,11 @@ var
 begin
   Clear;
   try
-    Parsed := GetJSON(Json);
+    // A byte order mark from a hand edit is not part of the JSON
+    if Json.StartsWith(#$EF#$BB#$BF) then
+      Parsed := GetJSON(Copy(Json, 4, MaxInt))
+    else
+      Parsed := GetJSON(Json);
   except
     Exit(plrCorrupt);
   end;
@@ -301,6 +319,11 @@ begin
         P.Temperature := Defaults.Temperature;
       P.MaxContextChars := Obj.Get('maxContextChars', Defaults.MaxContextChars);
       P.IoTimeoutSec := Obj.Get('ioTimeoutSec', Defaults.IoTimeoutSec);
+      // Out-of-range numbers from a hand edit fall back to defaults
+      if ppContextSize in ValidateAiProfile(P) then
+        P.MaxContextChars := Defaults.MaxContextChars;
+      if ppTimeout in ValidateAiProfile(P) then
+        P.IoTimeoutSec := Defaults.IoTimeoutSec;
       Add(P);
     end;
     FDefaultId := Root.Get('defaultId', '');
@@ -327,11 +350,19 @@ begin
 end;
 
 function TAiProfileList.LoadFromFile(const Filename: String): TAiProfilesLoadResult;
+var
+  Json: String;
 begin
   Clear;
   if not FileExists(Filename) then
     Exit(plrMissing);
-  Result := LoadFromJson(ReadFileText(Filename));
+  try
+    Json := ReadFileText(Filename);
+  except
+    on E: EStreamError do
+      Exit(plrUnreadable);
+  end;
+  Result := LoadFromJson(Json);
 end;
 
 procedure TAiProfileList.SaveToFile(const Filename: String);
@@ -340,19 +371,31 @@ var
   Stream: TFileStream;
 begin
   Json := ToJson;
-  TempName := Filename + '.tmp';
-  Stream := TFileStream.Create(TempName, fmCreate);
+  // Unique per process, so two running instances do not write the same temporary file
+  TempName := Filename + '.' + IntToStr(GetProcessID) + '.tmp';
   try
-    if Length(Json) > 0 then
-      Stream.WriteBuffer(Json[1], Length(Json));
-  finally
-    Stream.Free;
+    Stream := TFileStream.Create(TempName, fmCreate);
+    try
+      if Length(Json) > 0 then
+        Stream.WriteBuffer(Json[1], Length(Json));
+      {$IFDEF UNIX}
+      FpFsync(Stream.Handle);
+      {$ENDIF}
+    finally
+      Stream.Free;
+    end;
+    {$IFDEF WINDOWS}
+    // RenameFile does not replace an existing file on Windows
+    if FileExists(Filename) and not DeleteFile(Filename) then
+      raise EInOutError.CreateFmt('Cannot replace %s', [Filename]);
+    {$ENDIF}
+    // On Unix, rename replaces the target atomically
+    if not RenameFile(TempName, Filename) then
+      raise EInOutError.CreateFmt('Cannot rename %s to %s', [TempName, Filename]);
+  except
+    DeleteFile(TempName);
+    raise;
   end;
-  // RenameFile does not replace an existing file on Windows
-  if FileExists(Filename) and not DeleteFile(Filename) then
-    raise EInOutError.CreateFmt('Cannot replace %s', [Filename]);
-  if not RenameFile(TempName, Filename) then
-    raise EInOutError.CreateFmt('Cannot rename %s to %s', [TempName, Filename]);
 end;
 
 end.

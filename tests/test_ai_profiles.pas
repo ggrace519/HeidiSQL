@@ -33,11 +33,16 @@ type
     procedure LoadDuplicateIdsGetNewIds;
     procedure FileMissing;
     procedure FileSaveAndReload;
+    procedure FileSaveFailureLeavesNoTempFile;
+    procedure FileUnreadable;
+    procedure LoadWithByteOrderMark;
+    procedure LoadOutOfRangeNumbersGetDefaults;
   end;
 
 implementation
 
 uses
+  {$IFDEF UNIX} BaseUnix, {$ENDIF}
   Classes;
 
 procedure TAiProfilesTest.SetUp;
@@ -51,7 +56,7 @@ procedure TAiProfilesTest.TearDown;
 begin
   FList.Free;
   DeleteFile(FTempDir + AIPROFILESFILE);
-  DeleteFile(FTempDir + AIPROFILESFILE + '.tmp');
+  DeleteFile(FTempDir + AIPROFILESFILE + '.' + IntToStr(GetProcessID) + '.tmp');
   RemoveDir(FTempDir);
 end;
 
@@ -161,19 +166,19 @@ begin
   FList.Add(A);
   FList.Add(B);
   FList.DefaultId := B.Id;
-  AssertTrue(FList.Resolve(A.Id, R));
+  AssertTrue(FList.Resolve(A.Id, R) = pmExact);
   AssertEquals('exact', A.Id, R.Id);
-  AssertTrue(FList.Resolve('', R));
+  AssertTrue(FList.Resolve('', R) = pmDefault);
   AssertEquals('empty id -> default', B.Id, R.Id);
-  AssertTrue(FList.Resolve('{deleted}', R));
-  AssertEquals('unknown id -> default', B.Id, R.Id);
+  AssertTrue('unknown id is reported, not silently replaced', FList.Resolve('{deleted}', R) = pmMissing);
+  AssertEquals('default offered', B.Id, R.Id);
 end;
 
 procedure TAiProfilesTest.ResolveEmptyList;
 var
   R: TAiProfile;
 begin
-  AssertFalse(FList.Resolve('', R));
+  AssertTrue(FList.Resolve('', R) = pmNone);
 end;
 
 procedure TAiProfilesTest.DeleteDefaultPicksAnother;
@@ -253,7 +258,7 @@ begin
   FList.Add(P);
   FList.SaveToFile(FTempDir + AIPROFILESFILE);
   FList.SaveToFile(FTempDir + AIPROFILESFILE); // replacing an existing file works
-  AssertFalse('no temp file left', FileExists(FTempDir + AIPROFILESFILE + '.tmp'));
+  AssertFalse('no temp file left', FileExists(FTempDir + AIPROFILESFILE + '.' + IntToStr(GetProcessID) + '.tmp'));
   Other := TAiProfileList.Create;
   try
     AssertTrue(Other.LoadFromFile(FTempDir + AIPROFILESFILE) = plrOk);
@@ -261,6 +266,57 @@ begin
   finally
     Other.Free;
   end;
+end;
+
+procedure TAiProfilesTest.FileSaveFailureLeavesNoTempFile;
+var
+  Raised: Boolean;
+  Target: String;
+begin
+  FList.Add(Ollama);
+  // The target is an existing directory, so the final rename fails after the temp file was written
+  Target := FTempDir + 'adir';
+  ForceDirectories(Target + PathDelim + 'x');
+  Raised := False;
+  try
+    FList.SaveToFile(Target);
+  except
+    on E: Exception do
+      Raised := True;
+  end;
+  RemoveDir(Target + PathDelim + 'x');
+  RemoveDir(Target);
+  AssertTrue('raised', Raised);
+  AssertFalse('temp file removed', FileExists(Target + '.' + IntToStr(GetProcessID) + '.tmp'));
+end;
+
+procedure TAiProfilesTest.FileUnreadable;
+var
+  F: TextFile;
+begin
+  AssignFile(F, FTempDir + AIPROFILESFILE);
+  Rewrite(F);
+  Write(F, '{"profiles":[]}');
+  CloseFile(F);
+  {$IFDEF UNIX}
+  FpChmod(FTempDir + AIPROFILESFILE, 0);
+  if FpGetUid = 0 then
+    Exit; // root can read anything
+  AssertTrue(FList.LoadFromFile(FTempDir + AIPROFILESFILE) = plrUnreadable);
+  {$ENDIF}
+end;
+
+procedure TAiProfilesTest.LoadWithByteOrderMark;
+begin
+  AssertTrue(FList.LoadFromJson(#$EF#$BB#$BF'{"profiles":[{"name":"a"}]}') = plrOk);
+  AssertEquals(1, FList.Count);
+end;
+
+procedure TAiProfilesTest.LoadOutOfRangeNumbersGetDefaults;
+begin
+  FList.LoadFromJson('{"profiles":[{"name":"a","maxContextChars":null,"ioTimeoutSec":-5}]}');
+  AssertEquals(8000, FList[0].MaxContextChars);
+  AssertEquals(300, FList[0].IoTimeoutSec);
 end;
 
 initialization
