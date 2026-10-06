@@ -457,7 +457,7 @@ var
 
 implementation
 
-uses main
+uses main, forkpaths
 {$if defined(LINUX) and (defined(LCLQt5) or defined(LCLQt6))}
   , platformtheme
 {$endif};
@@ -4517,9 +4517,7 @@ begin
       // GetAppConfigDir returns "/home/rick/.config/heidisql" only in a very early state.
       // Later it takes the main form's caption into its folder name! Probably only before I created GetApplicationName.
       // AI Edition: use a sibling folder of the stock one, so both editions can coexist.
-      FDirnameUserAppData := ExtractFilePath(ExcludeTrailingPathDelimiter(GetAppConfigDir(False)))
-        + APPCONFIGDIRNAME;
-      FDirnameUserAppData := IncludeTrailingPathDelimiter(FDirnameUserAppData);
+      FDirnameUserAppData := ForkConfigDir;
     end;
   end;
   Result := FDirnameUserAppData;

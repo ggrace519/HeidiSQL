@@ -10,7 +10,7 @@ uses
   SysUtils, Dialogs,
   Forms, printer4lazarus, datetimectrls, LCLTranslator, Translations,
   { you can add units after this }
-  main, apphelpers, dbconnection, generic_types
+  main, apphelpers, dbconnection, generic_types, forksettings
   {$if defined(LINUX) and (defined(LCLQt5) or defined(LCLQt6))}
   , platformtheme
   {$endif};
@@ -20,6 +20,29 @@ uses
 var
   AppLanguage: String;
   WasDarkMode, IsDarkMode: Boolean;
+  CopyStockSettings: Boolean;
+
+procedure InitLanguage;
+begin
+  AppLanguage := AppSettings.ReadString(asAppLanguage);
+  // SysLanguage may be zh_CN, while we don't offer such a language, but anyway, this is just the current system language:
+  SysLanguage := GetLanguageID.LanguageCode;
+  LCLTranslator.SetDefaultLang(AppLanguage, '', GetApplicationName);
+  InitMoFile(AppLanguage);
+end;
+
+procedure SyncColorSchemeToTheme;
+begin
+  // Switch synedit and grid colors to dark mode and vice versa
+  WasDarkMode := AppSettings.ReadBool(asCurrentThemeIsDark);
+  IsDarkMode := ThemeIsDark;
+  if (not WasDarkMode) and IsDarkMode then
+    AppColorSchemes.ApplyDark
+  else if WasDarkMode and (not IsDarkMode) then
+    AppColorSchemes.ApplyLight;
+  AppSettings.WriteBool(asCurrentThemeIsDark, IsDarkMode);
+end;
+
 begin
   PostponedLogItems := TDBLogItems.Create(True);
   Application.{%H-}MainFormOnTaskBar := True; // hide warning: Symbol "MainFormOnTaskBar" is not portable
@@ -46,13 +69,11 @@ begin
   if DefaultFormatSettings.ThousandSeparator = #0 then
     DefaultFormatSettings.ThousandSeparator := ' ';
 
+  // AI Edition: must be detected before AppSettings creates this edition's settings file
+  CopyStockSettings := StockSettingsCopyPending;
   AppSettings := TAppSettings.Create;
 
-  AppLanguage := AppSettings.ReadString(asAppLanguage);
-  // SysLanguage may be zh_CN, while we don't offer such a language, but anyway, this is just the current system language:
-  SysLanguage := GetLanguageID.LanguageCode;
-  LCLTranslator.SetDefaultLang(AppLanguage, '', GetApplicationName);
-  InitMoFile(AppLanguage);
+  InitLanguage;
 
   RequireDerivedFormResource:=True;
   Application.Scaled:=True;
@@ -69,16 +90,15 @@ begin
   if PreferredAppMode = pamForceDark then
     uMetaDarkStyle.ApplyMetaDarkStyle(DefaultDark);
   {$ENDIF}
-  // Switch synedit and grid colors to dark mode and vice versa
-  WasDarkMode := AppSettings.ReadBool(asCurrentThemeIsDark);
-  IsDarkMode := ThemeIsDark;
-  if (not WasDarkMode) and IsDarkMode then
-    AppColorSchemes.ApplyDark
-  else if WasDarkMode and (not IsDarkMode) then
-    AppColorSchemes.ApplyLight;
-  AppSettings.WriteBool(asCurrentThemeIsDark, IsDarkMode);
+  SyncColorSchemeToTheme;
 
   Application.Initialize;
+
+  // AI Edition: offer to take over sessions and preferences from a stock HeidiSQL, once
+  if CopyStockSettings and OfferStockSettingsCopy then begin
+    InitLanguage;
+    SyncColorSchemeToTheme;
+  end;
 
   {$if defined(LINUX) and (defined(LCLQt5) or defined(LCLQt6))}
   // Let LCL install its Qt event hook before replacing the application palette.
