@@ -17,7 +17,8 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
   `tests/heidisql_tests.lpr`.
 - `make smoke` builds `out/tests/ai_smoke` to try `ai.http` against a real server, e.g.
   `out/tests/ai_smoke http://127.0.0.1:11434/v1 qwen2.5:7b` (add `--key-env NAME` for a key,
-  `--models` to list models, `--cancel-after MS` to test cancelling).
+  `--models` to list models, `--cancel-after MS` to test cancelling, `--insecure` / `--ca-file`).
+- The TLS tests need the `openssl` command line tool (they are skipped without it).
 
 ## Branches
 - `lazarus` = released branch, where upstream is merged in. `develop` = integration branch.

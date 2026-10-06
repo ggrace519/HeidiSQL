@@ -78,6 +78,10 @@ jobs:
             echo Building with Windows
             make build-win64
 
+        - name: Run unit tests (Windows)
+          if: ${{ matrix.operating-system == 'windows-latest' }}
+          run: make test
+
         - name: Verify PE flags (Windows)
           if: ${{ matrix.operating-system == 'windows-latest' }}
           shell: pwsh

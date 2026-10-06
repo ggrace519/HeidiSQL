@@ -3,6 +3,7 @@ program ai_smoke;
 // Manual check of ai.http against a real OpenAI-compatible server.
 //   ai_smoke <base-url> <model> [--key-env NAME] [--prompt TEXT] [--cancel-after MS]
 //   ai_smoke <base-url> --models [--key-env NAME]
+// Common options: --insecure (accept untrusted TLS certificates), --ca-file FILE
 // The key is read from the named environment variable and never printed.
 // Build: make smoke
 
@@ -64,6 +65,8 @@ begin
     Spec.Headers := Spec.Headers + ['Authorization: Bearer ' + Key];
   end;
   Spec.ConnectTimeoutMs := 10000;
+  Spec.TlsAllowUntrusted := HasOption('--insecure');
+  Spec.TlsExtraCaFile := OptionValue('--ca-file', '');
   Spec.IoTimeoutMs := 300000;
   if HasOption('--models') then begin
     Spec.Method := 'GET';

@@ -30,6 +30,10 @@ type
     Mode: TAiResponseMode;
     ConnectTimeoutMs: Integer;
     IoTimeoutMs: Integer;
+    // HTTPS: certificate and host name are verified unless this is set, for servers with
+    // self-signed certificates. The zero default is the safe one.
+    TlsAllowUntrusted: Boolean;
+    TlsExtraCaFile: String;  // Additional trusted CAs (PEM), optional
   end;
 
   TAiAbortProc = procedure of object;
@@ -71,7 +75,7 @@ implementation
 
 uses
   {$IFDEF UNIX} BaseUnix, {$ENDIF}
-  fphttpclient, opensslsockets, ssockets, sockets, ai.sse, ai.openai;
+  fphttpclient, opensslsockets, ssockets, sockets, ai.sse, ai.openai, ai.tls;
 
 const
   MAXBUFFEREDBODY = 4 * 1024 * 1024;
@@ -117,7 +121,11 @@ type
     FHandlerLock: TCriticalSection;
     FHandler: TSocketHandler;
     FAbortRequested: Boolean;
+    FTlsVerify: Boolean;
+    FTlsExtraCaFile: String;
+    FTlsError: String;
     procedure ShutdownSocket;
+    procedure TlsError(const Message: String);
   protected
     function GetSocketHandler(const UseSSL: Boolean): TSocketHandler; override;
     procedure ConnectToServer(const AHost: String; APort: Integer; UseSSL: Boolean = False); override;
@@ -126,6 +134,10 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Abort;
+    property TlsVerify: Boolean read FTlsVerify write FTlsVerify;
+    property TlsExtraCaFile: String read FTlsExtraCaFile write FTlsExtraCaFile;
+    // Reason of a failed TLS connection, empty otherwise
+    property TlsErrorMessage: String read FTlsError;
   end;
 
   TAiStreamWorker = class;
@@ -396,8 +408,17 @@ begin
 end;
 
 function TAiHttpClient.GetSocketHandler(const UseSSL: Boolean): TSocketHandler;
+var
+  Tls: TAiTlsSocketHandler;
 begin
-  Result := inherited GetSocketHandler(UseSSL);
+  if UseSSL then begin
+    Tls := TAiTlsSocketHandler.Create;
+    Tls.Verify := FTlsVerify;
+    Tls.ExtraCaFile := FTlsExtraCaFile;
+    Tls.OnTlsError := TlsError;
+    Result := Tls;
+  end else
+    Result := inherited GetSocketHandler(UseSSL);
   FHandlerLock.Enter;
   try
     FHandler := Result;
@@ -455,6 +476,11 @@ begin
     Terminate;
     ShutdownSocket;
   end;
+end;
+
+procedure TAiHttpClient.TlsError(const Message: String);
+begin
+  FTlsError := Message;
 end;
 
 procedure TAiHttpClient.Abort;
@@ -643,6 +669,8 @@ begin
       if (FSpec.ConnectTimeoutMs > 0) and (FSpec.ConnectTimeoutMs < 1000) then
         FSpec.ConnectTimeoutMs := 1000;
       FClient.ConnectTimeout := FSpec.ConnectTimeoutMs;
+      FClient.TlsVerify := not FSpec.TlsAllowUntrusted;
+      FClient.TlsExtraCaFile := FSpec.TlsExtraCaFile;
       FClient.IOTimeout := FSpec.IoTimeoutMs;
       FClient.OnHeaders := HeadersReceived;
       for Header in FSpec.Headers do
@@ -663,7 +691,10 @@ begin
     except
       on E: Exception do begin
         FMailbox.DetachAbort;
-        FMailbox.Finish(ClassifyException(E), 0, E.Message);
+        if Assigned(FClient) and (FClient.TlsErrorMessage <> '') then
+          FMailbox.Finish(ekConnect, 0, FClient.TlsErrorMessage)
+        else
+          FMailbox.Finish(ClassifyException(E), 0, E.Message);
       end;
     end;
   finally
