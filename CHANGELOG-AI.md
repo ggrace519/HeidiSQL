@@ -28,3 +28,4 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 
 ### Infrastructure
 - CI builds pushes and pull requests to the new `develop` branch.
+- Unit tests with fpcunit (`make test`), run by CI on Ubuntu.

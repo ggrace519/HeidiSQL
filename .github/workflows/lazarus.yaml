@@ -100,6 +100,10 @@ jobs:
             name: ${{ matrix.operating-system }}-WIN64
             path: out/win64/heidisql.exe
 
+        - name: Run unit tests (Ubuntu)
+          if: ${{ matrix.operating-system == 'ubuntu-latest' }}
+          run: make test
+
         - name: Build HeidiSQL (Ubuntu GTK)
           if: ${{ matrix.operating-system == 'ubuntu-latest' }}
           run: |

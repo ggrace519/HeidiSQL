@@ -11,7 +11,10 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 - Translations in a local build: `make copy-locale` copies the .mo files to `out/locale/`, but the
   app looks next to the executable, so also run `ln -sfn ../locale out/gtk2/locale`. Then
   `LANG=de_DE.UTF-8 LANGUAGE=de ./out/gtk2/heidisql` starts in German.
-- No tests yet. A fpcunit test project with `make test` arrives with the first AI core units.
+- Tests: `make test` builds `tests/heidisql_tests.lpr` (fpcunit console runner) with plain `fpc`
+  and runs all tests; exit code is non-zero on failures. CI runs it on Ubuntu. Tests cover only
+  LCL-free units; fixtures are in `tests/fixtures/`. Register each new test unit in the `uses` of
+  `tests/heidisql_tests.lpr`.
 
 ## Branches
 - `lazarus` = released branch, where upstream is merged in. `develop` = integration branch.
@@ -43,3 +46,8 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 - Actions added to `MainForm.ActionList1` after the caption snapshot in `TMainForm.FormCreate`
   (loop filling `FActionList1DefaultCaptions`) break Preferences > Shortcuts.
 - `TDBConnection` is not thread-safe. Read schema data on the main thread.
+- Pascal units declare each public routine twice (interface and implementation). Scripted
+  find/replace on a signature hits both; anchor such edits to one section.
+- Strings are UTF-8 because LazUTF8 makes UTF-8 the default code page, whatever the system locale.
+  Console programs (the test runner) must use `LazUTF8` too, or fpjson turns non-ASCII text
+  into "?". `make test` adds the LazUtils unit path for that.
