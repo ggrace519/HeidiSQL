@@ -80,7 +80,9 @@ jobs:
 
         - name: Run unit tests (Windows)
           if: ${{ matrix.operating-system == 'windows-latest' }}
-          run: make test
+          shell: pwsh
+          # make has no POSIX shell here to find lazbuild, so the Lazarus folder is passed in
+          run: make test "LAZDIR=${env:RUNNER_TEMP}/lazarus/"
 
         - name: Verify PE flags (Windows)
           if: ${{ matrix.operating-system == 'windows-latest' }}
