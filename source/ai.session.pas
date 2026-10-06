@@ -31,7 +31,8 @@ uses
 function LoadAiSessionSettings(const SessionPath: String): TAiSessionSettings;
 begin
   Result := Default(TAiSessionSettings);
-  if SessionPath = '' then
+  // Opening a missing session path would create it: an empty "ghost" session in the list
+  if (SessionPath = '') or not AppSettings.SessionPathExists(SessionPath) then
     Exit;
   // SessionPath of AppSettings is shared state: restore whatever another caller had set
   AppSettings.StorePath;
@@ -47,7 +48,8 @@ end;
 
 procedure SaveAiSessionSettings(const SessionPath: String; const Settings: TAiSessionSettings);
 begin
-  if SessionPath = '' then
+  // The session's own settings are saved first; a missing path means it was deleted or renamed
+  if (SessionPath = '') or not AppSettings.SessionPathExists(SessionPath) then
     Exit;
   AppSettings.StorePath;
   try

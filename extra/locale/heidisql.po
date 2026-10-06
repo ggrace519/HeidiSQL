@@ -7118,3 +7118,6 @@ msgstr "The provider \"%s\" is incomplete. Use \"Manage...\" to fix it."
 
 msgid "LLM Settings"
 msgstr "LLM Settings"
+
+msgid "(removed provider)"
+msgstr "(removed provider)"

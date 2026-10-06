@@ -10,13 +10,14 @@ interface
 
 uses
   Classes, SysUtils, Controls, StdCtrls, ExtCtrls, Forms, Graphics,
-  ai.profiles, ai.session, ai.formrows;
+  ai.profiles, ai.profilechoice, ai.session, ai.formrows;
 
 type
   TAiSessionPanel = class(TPanel)
   private
     FRows: TAiFormRows;
     FProfiles: TAiProfileList;
+    FChoices: TAiProfileChoices;   // Parallel to the combo items
     FLoaded: TAiSessionSettings;   // As stored, to detect modifications
     FUpdating: Boolean;
     FOnModified: TNotifyEvent;
@@ -101,32 +102,24 @@ end;
 
 procedure TAiSessionPanel.FillProfiles(const SelectId: String);
 var
-  i: Integer;
-  DefaultProfile: TAiProfile;
+  Choice: TAiProfileChoice;
+  Selected: Integer;
 begin
-  // Item 0 is "use the default provider", stored as an empty id
+  FChoices := BuildProfileChoices(FProfiles, SelectId, _('Default provider (%s)'),
+    _('Default provider (none defined yet)'), _('(removed provider)'), Selected);
   FComboProfile.Items.Clear;
-  if FProfiles.Resolve('', DefaultProfile) = pmNone then
-    FComboProfile.Items.Add(_('Default provider (none defined yet)'))
-  else
-    FComboProfile.Items.Add(f_('Default provider (%s)', [DefaultProfile.Name]));
-  for i:=0 to FProfiles.Count-1 do
-    FComboProfile.Items.Add(FProfiles[i].Name);
-  FComboProfile.ItemIndex := 0;
-  if SelectId <> '' then begin
-    i := FProfiles.IndexOfId(SelectId);
-    if i >= 0 then
-      FComboProfile.ItemIndex := i + 1;
-  end;
+  for Choice in FChoices do
+    FComboProfile.Items.Add(Choice.Caption);
+  FComboProfile.ItemIndex := Selected;
 end;
 
 function TAiSessionPanel.SelectedProfileId: String;
 var
   i: Integer;
 begin
-  i := FComboProfile.ItemIndex - 1;
-  if (i >= 0) and (i < FProfiles.Count) then
-    Result := FProfiles[i].Id
+  i := FComboProfile.ItemIndex;
+  if (i >= 0) and (i <= High(FChoices)) then
+    Result := FChoices[i].ProfileId
   else
     Result := '';
 end;
@@ -134,13 +127,7 @@ end;
 function TAiSessionPanel.Current: TAiSessionSettings;
 begin
   Result.Enabled := FCheckEnabled.Checked;
-  // A profile id that no longer exists is kept until the user picks another provider, so the
-  // session does not silently switch providers
-  if (FComboProfile.ItemIndex = 0) and (FLoaded.ProfileId <> '')
-    and (FProfiles.IndexOfId(FLoaded.ProfileId) < 0) then
-    Result.ProfileId := FLoaded.ProfileId
-  else
-    Result.ProfileId := SelectedProfileId;
+  Result.ProfileId := SelectedProfileId;
   Result.ContextNotes := FMemoNotes.Text;
 end;
 

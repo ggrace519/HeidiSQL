@@ -75,6 +75,10 @@ Sent to the provider with each request: table and column names, types, keys, com
 approximate row counts, the notes, and the SQL or question being asked about. No table data. For
 sensitive databases, use a local provider such as Ollama, so nothing leaves the computer.
 
+**File > Export settings** includes these session settings (also the notes), but not the AI
+providers. After importing on another computer, sessions whose provider does not exist there
+show "(removed provider)" until you choose one.
+
 ## Building
 
 ```sh
