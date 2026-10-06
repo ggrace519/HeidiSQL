@@ -38,6 +38,10 @@ type
     procedure ErrorMessageVariants;
     procedure ModelListSorted;
     procedure ModelListUnexpectedJson;
+    procedure NullErrorIsNoError;
+    procedure ContentAsArrayOfParts;
+    procedure ModelListDeduplicatedCaseSensitive;
+    procedure PaymentRequiredIsAuth;
   end;
 
 implementation
@@ -298,6 +302,42 @@ begin
   AssertEquals(0, Length(DecodeModelList('[]')));
   AssertEquals(0, Length(DecodeModelList('{"data":"x"}')));
   AssertEquals(0, Length(DecodeModelList('not json')));
+end;
+
+procedure TOpenAiFormatTest.NullErrorIsNoError;
+var
+  Delta: TAiStreamDelta;
+begin
+  AssertTrue(DecodeStreamEvent('{"error":null,"choices":[{"delta":{"content":"x"}}]}', Delta));
+  AssertEquals('no error', '', Delta.ErrorMessage);
+  AssertEquals('x', Delta.Content);
+  AssertEquals('null error body falls back to raw text', '{"error":null}', ExtractErrorMessage('{"error":null}'));
+end;
+
+procedure TOpenAiFormatTest.ContentAsArrayOfParts;
+var
+  Delta: TAiStreamDelta;
+  Content, Reasoning: String;
+  Usage: TAiUsage;
+begin
+  DecodeStreamEvent('{"choices":[{"delta":{"content":[{"type":"text","text":"SEL"},"ECT"]}}]}', Delta);
+  AssertEquals('SELECT', Delta.Content);
+  DecodeCompletion('{"choices":[{"message":{"content":[{"type":"text","text":"a"},{"type":"text","text":"b"}]}}]}',
+    Content, Reasoning, Usage);
+  AssertEquals('ab', Content);
+end;
+
+procedure TOpenAiFormatTest.ModelListDeduplicatedCaseSensitive;
+var
+  Ids: TStringArray;
+begin
+  Ids := DecodeModelList('{"data":[{"id":"m"},{"id":"m"},{"id":"M"}]}');
+  AssertEquals(2, Length(Ids));
+end;
+
+procedure TOpenAiFormatTest.PaymentRequiredIsAuth;
+begin
+  AssertTrue(ErrorKindFromStatus(402) = ekAuth);
 end;
 
 initialization

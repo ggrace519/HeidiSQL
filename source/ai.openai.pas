@@ -51,7 +51,7 @@ function DecodeModelList(const Json: String): TStringArray;
 implementation
 
 uses
-  Classes, fpjson, jsonparser;
+  Classes, fpjson, jsonparser, ai.text;
 
 const
   ROLENAMES: array[TAiChatRole] of String = ('system', 'user', 'assistant');
@@ -131,12 +131,37 @@ var
 begin
   Result := '';
   ErrData := Obj.Find('error');
+  // "error": null is sent by some servers in healthy chunks
+  if (ErrData = nil) or (ErrData.JSONType = jtNull) then
+    Exit;
   if ErrData is TJSONObject then
     Result := TJSONObject(ErrData).Get('message', '')
   else if ErrData is TJSONString then
     Result := ErrData.AsString;
-  if (ErrData <> nil) and (Result = '') then
+  if Result = '' then
     Result := ErrData.AsJSON;
+end;
+
+// Text of a "content" field: a string, or an array of parts like {"type":"text","text":".."}
+function ContentOf(Obj: TJSONObject): String;
+var
+  Data: TJSONData;
+  Parts: TJSONArray;
+  i: Integer;
+begin
+  Result := '';
+  Data := Obj.Find('content');
+  if Data is TJSONString then
+    Result := Data.AsString
+  else if Data is TJSONArray then begin
+    Parts := TJSONArray(Data);
+    for i:=0 to Parts.Count-1 do begin
+      if Parts[i] is TJSONString then
+        Result := Result + Parts[i].AsString
+      else if Parts[i] is TJSONObject then
+        Result := Result + TJSONObject(Parts[i]).Get('text', '');
+    end;
+  end;
 end;
 
 // Text of a "reasoning" field: reasoning_content (DeepSeek, vLLM) or reasoning (Ollama, OpenRouter)
@@ -173,7 +198,7 @@ begin
       Delta.FinishReason := Choice.Get('finish_reason', '');
       DeltaObj := Choice.Find('delta', jtObject) as TJSONObject;
       if DeltaObj <> nil then begin
-        Delta.Content := DeltaObj.Get('content', '');
+        Delta.Content := ContentOf(DeltaObj);
         Delta.Reasoning := ReasoningOf(DeltaObj);
       end;
     end;
@@ -206,7 +231,7 @@ begin
     Choice := TJSONObject(Choices[0]);
     Msg := Choice.Find('message', jtObject) as TJSONObject;
     if Msg <> nil then begin
-      Content := Msg.Get('content', '');
+      Content := ContentOf(Msg);
       Reasoning := ReasoningOf(Msg);
     end;
     Result := True;
@@ -219,7 +244,7 @@ function ErrorKindFromStatus(Status: Integer): TAiErrorKind;
 begin
   case Status of
     200..299: Result := ekNone;
-    401, 403: Result := ekAuth;
+    401, 402, 403: Result := ekAuth; // 402: billing / quota of the account
     404: Result := ekNotFound;
     408: Result := ekTimeout;
     429: Result := ekRateLimit;
@@ -247,9 +272,7 @@ begin
   end;
   if Result = '' then begin
     // Not JSON, e.g. "404 page not found" from a wrong path, or an HTML proxy error page
-    Result := Body.Trim;
-    if Length(Result) > MAXPLAINERRORLEN then
-      Result := Copy(Result, 1, MAXPLAINERRORLEN) + '...';
+    Result := Utf8Truncate(Body.Trim, MAXPLAINERRORLEN);
   end;
 end;
 
@@ -263,6 +286,9 @@ begin
   Result := nil;
   Parsed := TryParseJson(Json);
   Ids := TStringList.Create;
+  Ids.Sorted := True;
+  Ids.CaseSensitive := True;
+  Ids.Duplicates := dupIgnore;
   try
     if not (Parsed is TJSONObject) then
       Exit;
@@ -273,7 +299,6 @@ begin
       if Data[i] is TJSONObject then
         Ids.Add(TJSONObject(Data[i]).Get('id', ''));
     end;
-    Ids.Sort;
     while (Ids.Count > 0) and (Ids[0] = '') do
       Ids.Delete(0);
     Result := Ids.ToStringArray;
