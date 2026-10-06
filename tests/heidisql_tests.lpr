@@ -7,8 +7,11 @@ program heidisql_tests;
 
 uses
   {$IFDEF UNIX} cthreads, {$ENDIF}
+  // Same string environment as the application: LazUTF8 makes UTF-8 the default code page,
+  // independent of the system locale. Without it, fpjson turns non-ASCII text into "?".
+  LazUTF8,
   Classes, consoletestrunner,
-  test_forkpaths, test_forkupdate, test_ai_sse;
+  test_forkpaths, test_forkupdate, test_ai_sse, test_ai_openai;
 
 var
   App: TTestRunner;

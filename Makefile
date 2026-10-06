@@ -4,6 +4,9 @@ OPTS := -B --bm=Release
 OPTSQT5 := --ws=qt5
 OPTSQT6 := --ws=qt6
 LPI := heidisql.lpi
+# Compiled LazUtils units of the Lazarus installation lazbuild belongs to, for the unit tests
+LAZDIR := $(dir $(realpath $(LAZBUILD)))
+LAZUTILS := $(LAZDIR)components/lazutils/lib/$(shell fpc -iTP)-$(shell fpc -iTO)
 
 BIN := ./out/heidisql
 BINWIN64 := ./out/win64/heidisql.exe
@@ -43,7 +46,7 @@ clean:
 test:
 	@echo "=== Building and running unit tests"
 	@mkdir -p ./out/tests ./bin/tests
-	fpc -B -Mdelphi -Sh -Fu./source -Fi./source -Fu./tests -FU./bin/tests -FE./out/tests ./tests/heidisql_tests.lpr
+	fpc -B -Mdelphi -Sh -Fu./source -Fi./source -Fu./tests -Fu$(LAZUTILS) -FU./bin/tests -FE./out/tests ./tests/heidisql_tests.lpr
 	./out/tests/heidisql_tests --all --format=plain
 
 copy-locale:
