@@ -57,7 +57,8 @@ type
 function DefaultContextBudget: TAiContextBudget;
 
 // Table names occurring in Text as whole words, case-insensitive, in TableNames order.
-// A trailing "s"/"es" on either side counts as a match ("order" finds "orders").
+// Simple English plurals match ("order" finds "orders", "category" finds "categories").
+// Only the first 200000 bytes of Text are scanned.
 function FindMentionedTables(const Text: String; const TableNames: TStringArray): TStringArray;
 
 // Tables to load in detail, by priority: mentioned in Prompt, used in Sql, the active object,
@@ -76,7 +77,11 @@ function FormatSchemaContext(const Tables: TAiSchemaTables; const DetailOrder: T
 implementation
 
 uses
-  Classes, StrUtils;
+  Classes, StrUtils, ai.text;
+
+const
+  // Text beyond this is not scanned for table names, so a huge script cannot stall the UI
+  MAXSCANBYTES = 200000;
 
 function DefaultContextBudget: TAiContextBudget;
 begin
@@ -111,19 +116,29 @@ begin
   Result := c in ['A'..'Z', 'a'..'z', '0'..'9', '_', '$', #128..#255];
 end;
 
-// Lowercase words of Text, splitting on everything but identifier characters
-function WordsOf(const Text: String): TStringArray;
-var
-  i, Start: Integer;
+function NewWordSet: TStringList;
 begin
-  Result := nil;
+  Result := TStringList.Create;
+  Result.Sorted := True;
+  Result.Duplicates := dupIgnore;
+  Result.CaseSensitive := True;
+end;
+
+// Lowercase words of Text, splitting on everything but identifier characters
+procedure CollectWords(const Text: String; Words: TStringList);
+var
+  i, Start, Len: Integer;
+begin
+  Len := Length(Text);
+  if Len > MAXSCANBYTES then
+    Len := MAXSCANBYTES;
   i := 1;
-  while i <= Length(Text) do begin
+  while i <= Len do begin
     if IsWordChar(Text[i]) then begin
       Start := i;
-      while (i <= Length(Text)) and IsWordChar(Text[i]) do
+      while (i <= Len) and IsWordChar(Text[i]) do
         Inc(i);
-      AddUnique(Result, LowerCase(Copy(Text, Start, i - Start)));
+      Words.Add(LowerCase(Copy(Text, Start, i - Start)));
     end else
       Inc(i);
   end;
@@ -146,19 +161,25 @@ end;
 
 function FindMentionedTables(const Text: String; const TableNames: TStringArray): TStringArray;
 var
-  Words, Singulars: TStringArray;
-  i: Integer;
+  Words, Singulars: TStringList;
+  i, Dummy: Integer;
   Name: String;
 begin
   Result := nil;
-  Words := WordsOf(Text);
-  Singulars := nil;
-  for i:=0 to High(Words) do
-    AddUnique(Singulars, Singular(Words[i]));
-  for i:=0 to High(TableNames) do begin
-    Name := LowerCase(TableNames[i]);
-    if (IndexOfText(Words, Name) >= 0) or (IndexOfText(Singulars, Singular(Name)) >= 0) then
-      AddUnique(Result, TableNames[i]);
+  Words := NewWordSet;
+  Singulars := NewWordSet;
+  try
+    CollectWords(Text, Words);
+    for i:=0 to Words.Count-1 do
+      Singulars.Add(Singular(Words[i]));
+    for i:=0 to High(TableNames) do begin
+      Name := LowerCase(TableNames[i]);
+      if Words.Find(Name, Dummy) or Singulars.Find(Singular(Name), Dummy) then
+        AddUnique(Result, TableNames[i]);
+    end;
+  finally
+    Words.Free;
+    Singulars.Free;
   end;
 end;
 
@@ -214,15 +235,15 @@ end;
 function OneLine(const Text: String; MaxLen: Integer): String;
 begin
   Result := Text.Replace(#13#10, ' ').Replace(#10, ' ').Replace(#13, ' ').Trim;
-  if (MaxLen > 0) and (Length(Result) > MaxLen) then
-    Result := Copy(Result, 1, MaxLen - 3) + '...';
+  if (MaxLen > 3) and (Length(Result) > MaxLen) then
+    Result := Utf8Truncate(Result, MaxLen - 3);
 end;
 
 function RowsLabel(Rows: Int64): String;
 begin
   if Rows < 0 then
     Result := ''
-  else if Rows >= 1000000 then
+  else if Rows >= 999500 then
     Result := ' (~' + IntToStr(Round(Rows / 1000000)) + 'M rows)'
   else if Rows >= 10000 then
     Result := ' (~' + IntToStr(Round(Rows / 1000)) + 'k rows)'

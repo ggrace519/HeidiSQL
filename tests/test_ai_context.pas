@@ -26,6 +26,9 @@ type
     procedure FormatNameOnlyForTablesWithoutDetail;
     procedure LargeSchemaStaysWithinBudget;
     procedure EmptySchema;
+    procedure CommentShortenedOnUtf8Boundary;
+    procedure RowLabelsRoundToUnits;
+    procedure HugeScriptScannedQuickly;
   end;
 
 implementation
@@ -260,6 +263,54 @@ end;
 procedure TAiContextTest.EmptySchema;
 begin
   AssertEquals('', FormatSchemaContext(nil, nil, DefaultContextBudget));
+end;
+
+procedure TAiContextTest.CommentShortenedOnUtf8Boundary;
+var
+  Tables: TAiSchemaTables;
+  Text, Header: String;
+begin
+  SetLength(Tables, 1);
+  Tables[0].Name := 't';
+  Tables[0].RowsEstimate := -1;
+  Tables[0].DetailLoaded := True;
+  // 76 ASCII characters, then "ü" (2 bytes) across the cut at byte 77
+  Tables[0].Comment := StringOfChar('x', 76) + #$C3#$BC + StringOfChar('y', 20);
+  Text := FormatSchemaContext(Tables, ['t'], DefaultContextBudget);
+  Header := Copy(Text, 1, Pos(#10, Text) - 1);
+  AssertEquals('t -- ' + StringOfChar('x', 76) + '...', Header);
+end;
+
+procedure TAiContextTest.RowLabelsRoundToUnits;
+var
+  Tables: TAiSchemaTables;
+  Text: String;
+begin
+  SetLength(Tables, 2);
+  Tables[0].Name := 'a';
+  Tables[0].RowsEstimate := 999999;
+  Tables[1].Name := 'b';
+  Tables[1].RowsEstimate := 999499;
+  Text := FormatSchemaContext(Tables, nil, DefaultContextBudget);
+  AssertEquals('Tables: a (~1M rows), b (~999k rows)'#10, Text);
+end;
+
+procedure TAiContextTest.HugeScriptScannedQuickly;
+var
+  Names: TStringArray;
+  Script: String;
+  i: Integer;
+  Started: QWord;
+begin
+  SetLength(Names, 2000);
+  for i:=0 to High(Names) do
+    Names[i] := 'table_' + IntToStr(i);
+  Script := '';
+  for i:=1 to 20000 do
+    Script := Script + 'SELECT col_' + IntToStr(i) + ' FROM table_' + IntToStr(i mod 3000) + ';'#10;
+  Started := GetTickCount64;
+  AssertTrue('found some', Length(PlanDetailTables(Names, 'q', Script, '', 25)) = 25);
+  AssertTrue('took ' + IntToStr(GetTickCount64 - Started) + ' ms', GetTickCount64 - Started < 1000);
 end;
 
 initialization
