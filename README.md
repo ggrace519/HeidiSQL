@@ -1,4 +1,7 @@
 # HeidiSQL Lazarus/FreePascal port
+
+> **HeidiSQL AI Edition** — this fork adds an AI assistant for writing and understanding SQL.
+> See [AI-EDITION.md](AI-EDITION.md) for what differs from stock HeidiSQL.
 [![Build Status](https://github.com/HeidiSQL/HeidiSQL/actions/workflows/lazarus.yaml/badge.svg?branch=lazarus)](https://github.com/HeidiSQL/HeidiSQL/actions)
 [![Supports Windows](https://img.shields.io/badge/support-Windows-blue?logo=Windows)](https://github.com/HeidiSQL/HeidiSQL/releases/latest)
 [![Supports Linux](https://img.shields.io/badge/support-Linux-yellow?logo=Linux)](https://github.com/HeidiSQL/HeidiSQL/releases/latest)
@@ -21,7 +24,7 @@ Ansgar
 ![HeidiSQL GTK2 running on Ubuntu Linux 22.04](https://www.heidisql.com/images/screenshots/linux_version_datagrid.png)
 
 ### Building
-Install Lazarus 4.4 and FreePascal. Then load the `.lpi` file in the root directory in the Lazarus IDE.
+Install Lazarus 4.8 and FreePascal 3.2.2 (the versions used by the CI build). Then load the `.lpi` file in the root directory in the Lazarus IDE.
 Alternatively, use `/usr/bin/lazbuild heidisql.lpi` on the command line.
 
 ### Icons8 copyright

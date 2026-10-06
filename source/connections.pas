@@ -254,7 +254,7 @@ uses Main, apphelpers, dbstructures.sqlite, grideditlinks;
 
 function Tconnform.GetWindowCaption: String;
 begin
-  Result := APPNAME + ' ' + MainForm.AppVersion + ' - ' + _('Session manager');
+  Result := APPDISPLAYNAME + ' ' + MainForm.AppVersion + ' - ' + _('Session manager');
   if not SelectedSessionPath.IsEmpty then
     Result := Result + ': ' + SelectedSessionPath;
 end;
@@ -1030,7 +1030,7 @@ begin
     if ListSessions.RootNodeCount = 0 then begin
       lblHelp.Caption := f_('New here? In order to connect to a server, you have to create a so called '+
         '"session" at first. Just click the "New" button on the bottom left to create your first session. '+
-        'Give it a friendly name (e.g. "Local DB server") so you''ll recall it the next time you start %s.', [APPNAME]);
+        'Give it a friendly name (e.g. "Local DB server") so you''ll recall it the next time you start %s.', [APPDISPLAYNAME]);
       lblHelpPortable.Visible := AppSettings.PortableMode;
     end
     else begin

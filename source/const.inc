@@ -15,6 +15,18 @@ const
 
   // General things
   APPNAME = 'HeidiSQL';
+  // AI Edition fork: shown in window captions and About box. APPNAME stays unchanged, as it
+  // drives translation file lookup and the client name reported to database servers.
+  APPDISPLAYNAME = 'HeidiSQL AI Edition';
+  // Settings folder name, kept apart from a stock HeidiSQL installed on the same machine
+  APPCONFIGDIRNAME = 'heidisql-ai';
+  // Version of the AI Edition, independent of the upstream version it is based on.
+  // Releases are tagged with FORKRELEASETAGPREFIX + version, e.g. "ai-v0.1.0".
+  AIEDITIONVERSION = '0.1.0';
+  FORKRELEASESAPI = 'https://api.github.com/repos/ggrace519/HeidiSQL/releases?per_page=50';
+  FORKRELEASETAGPREFIX = 'ai-v';
+  // The AI Edition does not report to the upstream project's usage statistics service
+  REPORTUSAGESTATISTICS = False;
   APPDOMAIN = 'https://www.heidisql.com/';
   REGKEY_SESSIONS = 'Servers';
   REGKEY_QUERYHISTORY = 'QueryHistory';

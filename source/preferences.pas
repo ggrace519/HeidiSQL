@@ -664,6 +664,8 @@ begin
   spinUpdatecheckInterval.Value := AppSettings.ReadInt(asUpdatecheckInterval);
   chkUpdatecheckClick(Sender);
   chkDoStatistics.Checked := AppSettings.ReadBool(asDoUsageStatistics);
+  // AI Edition: no reporting to the upstream statistics service, so the option is hidden
+  chkDoStatistics.Visible := REPORTUSAGESTATISTICS;
   chkWheelZoom.Checked := AppSettings.ReadBool(asWheelZoom);
   chkColorBars.Checked := AppSettings.ReadBool(asDisplayBars);
   editMySQLBinaries.Text := AppSettings.ReadString(asMySQLBinaries);

@@ -5,7 +5,7 @@ unit updatecheck;
 interface
 
 uses
-  SysUtils, Classes, Forms, StdCtrls, IniFiles, Controls, Graphics,
+  SysUtils, Classes, Forms, StdCtrls, Controls, Graphics,
   apphelpers, ExtCtrls, extra_controls, Dialogs,
   Menus, Clipbrd, generic_types, DateUtils, Buttons;
 
@@ -27,14 +27,10 @@ type
     procedure LinkLabelReleaseLinkClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure CopydownloadURL1Click(Sender: TObject);
-  const
-    SLinkDownloadRelease= 'download-release';
-    SLinkInstructionsPortable = 'instructions-portable';
-    SLinkChangelog = 'changelog';
   private
     { Private declarations }
+    FReleaseUrl: String;
     procedure Status(txt: String);
-    function GetLinkUrl(Sender: TObject; LinkType: String): String;
   public
     { Public declarations }
     procedure ReadCheckFile;
@@ -43,7 +39,7 @@ type
 
 implementation
 
-uses main;
+uses main, forkupdate;
 
 {$R *.lfm}
 
@@ -62,6 +58,9 @@ begin
   btnDonate.Caption := f_('Donate to the %s project', [APPNAME]);
   Width := AppSettings.ReadInt(asUpdateCheckWindowWidth);
   Height := AppSettings.ReadInt(asUpdateCheckWindowHeight);
+  // The form file anchors the status label's right side to the Cancel button, but without akRight,
+  // so long status texts ran underneath the button instead of wrapping.
+  lblStatus.Anchors := lblStatus.Anchors + [akRight];
 end;
 
 {**
@@ -75,23 +74,19 @@ end;
 
 
 {**
-  Download check file
+  Fetch release list and show result
 }
 procedure TfrmUpdateCheck.FormShow(Sender: TObject);
 begin
-  Caption := f_('Check for %s updates', [APPNAME]) + ' ...';
+  Caption := f_('Check for %s updates', [APPDISPLAYNAME]) + ' ...';
   Screen.Cursor := crHourglass;
   try
-    Status(_('Downloading check file')+' ...');
+    Status(_('Downloading release list')+' ...');
     ReadCheckFile;
-    // Developer versions probably have "unknown" (0) as revision,
-    // which makes it impossible to compare the revisions.
-    if Mainform.AppVerRevision = 0 then
-      Status(_('Error: Cannot determine current revision. Using a developer version?'))
-    else if groupRelease.Enabled then
+    if groupRelease.Enabled then
       Status(_('Updates available.'))
     else
-      Status(f_('Your %s is up-to-date (no update available).', [APPNAME]));
+      Status(f_('Your %s is up-to-date (no update available).', [APPDISPLAYNAME]));
   except
     // Do not popup errors, just display them in the status label
     on E:Exception do
@@ -103,110 +98,75 @@ end;
 
 
 {**
-  Parse check file for updated version + release
+  Read the AI Edition's releases from GitHub, and enable the release group if a newer one exists
 }
 procedure TfrmUpdateCheck.ReadCheckFile;
 var
-  CheckfileDownload: THttpDownLoad;
-  CheckFilename, TaskXmlFile: String;
-  Ini: TIniFile;
-  ReleaseVersion, ReleasePackage: String;
-  Note: String;
-  Compiled: TDateTime;
-const
-  INISECT_RELEASE = 'Release';
+  Http: THttpDownload;
+  ReleasesJson: String;
+  Release: TForkRelease;
 begin
   // Init GUI controls
   memoRelease.Clear;
+  groupRelease.Caption := _('AI Edition release');
+  groupRelease.Enabled := False;
+  LinkLabelRelease.Enabled := False;
+  FReleaseUrl := '';
 
-  // Prepare download
-  CheckfileDownload := THttpDownload.Create(Self);
-  CheckfileDownload.TimeOut := 5;
-  CheckfileDownload.URL := APPDOMAIN+'updatecheck.php?r='+IntToStr(Mainform.AppVerRevision)+'&bits='+IntToStr(GetExecutableBits)+'&os='+EncodeURLParam(GetOS.ToLower)+'&t='+EncodeURLParam(DateTimeToStr(Now));
-  CheckFilename := GetTempDir + APPNAME + '_updatecheck.ini';
-
-  // Download the check file
-  CheckfileDownload.SendRequest(CheckFilename);
+  Http := THttpDownload.Create(Self);
+  try
+    Http.TimeOut := 5;
+    Http.AddHeader('Accept', 'application/vnd.github+json');
+    // Raises EHTTPClient on any status other than 200
+    ReleasesJson := Http.Get(FORKRELEASESAPI);
+  finally
+    Http.Free;
+  end;
   // Remember when we did the updatecheck to enable the automatic interval
   AppSettings.WriteString(asUpdatecheckLastrun, DateTimeToStr(Now));
 
-  // Read [Release] section of check file
-  Ini := TIniFile.Create(CheckFilename);
-  if Ini.SectionExists(INISECT_RELEASE) then begin
-    ReleaseVersion := Ini.ReadString(INISECT_RELEASE, 'Version', 'unknown');
-    if AppSettings.PortableMode then
-      ReleasePackage := 'portable'
-    else
-      ReleasePackage := {$IFDEF WINDOWS} 'installer' {$ELSE} 'package' {$ENDIF};
-    memoRelease.Lines.Add(f_('Version %s (yours: %s)', [ReleaseVersion, Mainform.AppVersion]));
-    memoRelease.Lines.Add(f_('Released: %s', [Ini.ReadString(INISECT_RELEASE, 'Date', '')]));
-    Note := Ini.ReadString(INISECT_RELEASE, 'Note', '');
-    if Note <> '' then
-      memoRelease.Lines.Add(_('Notes') + ': ' + Note);
-
-    LinkLabelRelease.Caption := f_('Download version %s (%s)', [ReleaseVersion, ReleasePackage]);
-
+  Release := FindLatestForkRelease(ReleasesJson, FORKRELEASETAGPREFIX);
+  if not Release.Found then begin
+    memoRelease.Lines.Add(_('No AI Edition release has been published yet.'));
+  end else begin
+    FReleaseUrl := Release.Url;
+    memoRelease.Lines.Add(f_('Version %s (yours: %s)', [Release.Version, AIEDITIONVERSION]));
+    memoRelease.Lines.Add(f_('Released: %s', [Copy(Release.PublishedAt, 1, 10)]));
+    if Release.Notes <> '' then
+      memoRelease.Lines.Add(_('Notes') + ': ' + Release.Notes);
+    LinkLabelRelease.Caption := f_('Download version %s', [Release.Version]);
     LinkLabelRelease.Font.Style := LinkLabelRelease.Font.Style + [fsUnderline];
-    memoRelease.Enabled := groupRelease.Enabled;
-    if not memoRelease.Enabled then
-      memoRelease.Font.Color := GetThemeColor(cl3DDkShadow)
-    else
-      memoRelease.Font.Color := GetThemeColor(clWindowText);
+    groupRelease.Enabled := IsNewerVersion(Release.Version, AIEDITIONVERSION);
+    LinkLabelRelease.Enabled := groupRelease.Enabled;
   end;
 
-  if FileExists(CheckFilename) then
-    DeleteFile(CheckFilename);
-  FreeAndNil(CheckfileDownload);
+  memoRelease.Enabled := groupRelease.Enabled;
+  if not memoRelease.Enabled then
+    memoRelease.Font.Color := GetThemeColor(cl3DDkShadow)
+  else
+    memoRelease.Font.Color := GetThemeColor(clWindowText);
 end;
 
 
 {**
-  Download release package via web browser
+  Open the release page in the web browser
 }
 procedure TfrmUpdateCheck.LinkLabelReleaseLinkClick(Sender: TObject);
 begin
-  ShellExec(GetLinkUrl(LinkLabelRelease, SLinkDownloadRelease));
+  if FReleaseUrl <> '' then
+    ShellExec(FReleaseUrl);
 end;
 
 
 procedure TfrmUpdateCheck.CopydownloadURL1Click(Sender: TObject);
 begin
-  Clipboard.TryAsText := GetLinkUrl(LinkLabelRelease, SLinkDownloadRelease);
+  Clipboard.TryAsText := FReleaseUrl;
 end;
 
 procedure TfrmUpdateCheck.FormDestroy(Sender: TObject);
 begin
   AppSettings.WriteInt(asUpdateCheckWindowWidth, ScaleFormToDesign(Width));
   AppSettings.WriteInt(asUpdateCheckWindowHeight, ScaleFormToDesign(Height));
-end;
-
-
-function TfrmUpdateCheck.GetLinkUrl(Sender: TObject; LinkType: String): String;
-var
-  DownloadParam, PlaceParam, OsParam: String;
-begin
-  PlaceParam := 'place='+EncodeURLParam(TWinControl(Sender).Name);
-  OsParam := 'os='+EncodeURLParam(GetOS.ToLower);
-
-  if LinkType = SLinkDownloadRelease then begin
-    if AppSettings.PortableMode then begin
-      if GetExecutableBits = 64 then
-        DownloadParam := 'download=portable-64'
-      else
-        DownloadParam := 'download=portable';
-    end else begin
-      DownloadParam := 'download=installer';
-    end;
-    Result := 'download.php?'+DownloadParam+'&'+PlaceParam+'&'+OsParam;
-  end
-
-  else if LinkType = SLinkChangelog then
-    Result := 'changes-lazarus'
-
-  else
-    Result := '';
-
-  Result := APPDOMAIN + Result;
 end;
 
 

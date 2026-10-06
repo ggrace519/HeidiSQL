@@ -1885,7 +1885,7 @@ begin
     if set in Windows. This animation takes some milliseconds
     to complete and can be annoying.
   }
-  Caption := APPNAME;
+  Caption := APPDISPLAYNAME;
 
   // Load preferred Images into ImageListMain
   PrepareImageList;
@@ -2059,7 +2059,7 @@ begin
   // Force status bar position to below log memo
   StatusBar.Top := SynMemoSQLLog.Top + SynMemoSQLLog.Height;
   actDataShowNext.Hint := f_('Show next %s rows ...', [FormatNumber(AppSettings.ReadInt(asDatagridRowsPerStep))]);
-  actAboutBox.Caption := f_('About %s', [APPNAME+' '+FAppVersion]);
+  actAboutBox.Caption := f_('About %s', [APPDISPLAYNAME+' '+FAppVersion]);
   // Activate logging
   LogToFile := AppSettings.ReadBool(asLogToFile);
   if AppSettings.ReadBool(asLogHorizontalScrollbar) then
@@ -2238,7 +2238,7 @@ begin
   btnDonate.Visible := HasDonated(True) <> nbTrue;
 
   // Call user statistics if checked in settings
-  if AppSettings.ReadBool(asDoUsageStatistics) then begin
+  if REPORTUSAGESTATISTICS and AppSettings.ReadBool(asDoUsageStatistics) then begin
     LastStatsCall := StrToDateTimeDef(AppSettings.ReadString(asLastUsageStatisticCall), DateTimeNever);
     if DaysBetween(Now, LastStatsCall) >= 30 then begin
       // Report used app version, bits.
@@ -13550,7 +13550,7 @@ var
   Cap: String;
 begin
   // Set window caption and taskbar text
-  Cap := DBtree.Path(DBtree.FocusedNode, 0, ttStatic, '\') + ' - ' + APPNAME;
+  Cap := DBtree.Path(DBtree.FocusedNode, 0, ttStatic, '\') + ' - ' + APPDISPLAYNAME;
   if AppSettings.PortableMode then
     Cap := Cap + ' Portable';
   Cap := Cap + ' ' + FAppVersion;

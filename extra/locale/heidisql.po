@@ -6869,3 +6869,30 @@ msgstr "The UPDATE affected %s rows, but 1 was expected. On tables without a pri
 
 msgid "The DELETE affected %s rows, but 1 was expected. On tables without a primary or unique key, HeidiSQL must match on all columns, so edits may not reliably target the intended row."
 msgstr "The DELETE affected %s rows, but 1 was expected. On tables without a primary or unique key, HeidiSQL must match on all columns, so edits may not reliably target the intended row."
+
+msgid "Copy settings from HeidiSQL?"
+msgstr "Copy settings from HeidiSQL?"
+
+msgid "This is the first start of %s. A standard HeidiSQL installation was found on this computer, with settings in:"
+msgstr "This is the first start of %s. A standard HeidiSQL installation was found on this computer, with settings in:"
+
+msgid "Copy its sessions, preferences, snippets and query backups into this edition? The original settings are not changed."
+msgstr "Copy its sessions, preferences, snippets and query backups into this edition? The original settings are not changed."
+
+msgid "Copying settings failed: %s"
+msgstr "Copying settings failed: %s"
+
+msgid "Downloading release list"
+msgstr "Downloading release list"
+
+msgid "AI Edition release"
+msgstr "AI Edition release"
+
+msgid "No AI Edition release has been published yet."
+msgstr "No AI Edition release has been published yet."
+
+msgid "Download version %s"
+msgstr "Download version %s"
+
+msgid "Version %s, based on HeidiSQL %s"
+msgstr "Version %s, based on HeidiSQL %s"
