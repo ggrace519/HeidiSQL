@@ -5,8 +5,9 @@ OPTSQT5 := --ws=qt5
 OPTSQT6 := --ws=qt6
 LPI := heidisql.lpi
 # Compiled LazUtils units of the Lazarus installation lazbuild belongs to, for the unit tests
-LAZDIR := $(dir $(realpath $(LAZBUILD)))
-LAZUTILS := $(LAZDIR)components/lazutils/lib/$(shell fpc -iTP)-$(shell fpc -iTO)
+# Recursively expanded (=), so fpc is only asked when the test target uses it
+LAZDIR = $(dir $(realpath $(LAZBUILD)))
+LAZUTILS = $(LAZDIR)components/lazutils/lib/$(shell fpc -iTP)-$(shell fpc -iTO)
 
 BIN := ./out/heidisql
 BINWIN64 := ./out/win64/heidisql.exe

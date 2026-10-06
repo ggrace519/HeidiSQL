@@ -37,6 +37,8 @@ const
 
 // Problem receives technical detail from the keychain backend, if any; the UI words the
 // message from the result and the profile's key name. It never contains the key.
+// Call from the main thread: a keychain may show an unlock prompt, and the registered backend
+// and GetEnvironmentValue are not guarded for concurrent use.
 function ResolveApiKey(const Profile: TAiProfile; out Key: String; out Problem: String): TAiKeyResult;
 
 // Platform units register their backend in their initialization section
@@ -86,16 +88,25 @@ begin
     end;
     ksKeychain: begin
       if FKeychain = nil then
-        Result := krKeychainUnavailable
-      else if not FKeychain.Available(Problem) then
-        Result := krKeychainUnavailable
-      else begin
-        Result := FKeychain.Lookup(Name, Key, Problem);
-        if (Result = krFound) and (Key.Trim = '') then
-          Result := krKeychainNotFound;
-        if Result <> krFound then
-          Key := '';
+        Exit(krKeychainUnavailable);
+      // Backends talk to D-Bus, the Windows credential store or a helper program: any of these
+      // can raise, which must not escape into the UI as an unhandled exception
+      try
+        if not FKeychain.Available(Problem) then
+          Result := krKeychainUnavailable
+        else begin
+          Result := FKeychain.Lookup(Name, Key, Problem);
+          if (Result = krFound) and (Key.Trim = '') then
+            Result := krKeychainNotFound;
+        end;
+      except
+        on E: Exception do begin
+          Result := krKeychainError;
+          Problem := E.ClassName + ': ' + E.Message;
+        end;
       end;
+      if Result <> krFound then
+        Key := '';
     end;
     else
       Result := krNotNeeded;

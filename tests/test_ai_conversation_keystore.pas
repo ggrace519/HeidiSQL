@@ -36,6 +36,10 @@ type
     function Remove(const Account: String; out Problem: String): Boolean;
   end;
 
+  TRaisingKeychain = class(TFakeKeychain, IAiKeychain)
+    function Lookup(const Account: String; out Secret: String; out Problem: String): TAiKeyResult;
+  end;
+
   TAiKeystoreTest = class(TTestCase)
   protected
     procedure TearDown; override;
@@ -46,6 +50,7 @@ type
     procedure KeychainNotRegistered;
     procedure KeychainUnavailable;
     procedure KeychainFoundAndMissing;
+    procedure KeychainExceptionBecomesError;
   end;
 
 implementation
@@ -334,6 +339,26 @@ begin
   AssertTrue('missing', ResolveApiKey(KeyProfile(ksKeychain, 'other'), Key, Problem) = krKeychainNotFound);
   AssertTrue('empty secret', ResolveApiKey(KeyProfile(ksKeychain, 'empty'), Key, Problem) = krKeychainNotFound);
   AssertEquals('no key on failure', '', Key);
+end;
+
+function TRaisingKeychain.Lookup(const Account: String; out Secret: String; out Problem: String): TAiKeyResult;
+begin
+  Secret := 'sk-should-not-leak';
+  raise Exception.Create('D-Bus connection lost');
+end;
+
+procedure TAiKeystoreTest.KeychainExceptionBecomesError;
+var
+  Fake: TRaisingKeychain;
+  Key, Problem: String;
+begin
+  Fake := TRaisingKeychain.Create;
+  Fake.IsAvailable := True;
+  RegisterKeychain(Fake);
+  AssertTrue(ResolveApiKey(KeyProfile(ksKeychain, 'x'), Key, Problem) = krKeychainError);
+  AssertEquals('no key', '', Key);
+  AssertTrue('detail kept', Pos('D-Bus connection lost', Problem) > 0);
+  AssertTrue('no secret in problem', Pos('sk-', Problem) = 0);
 end;
 
 initialization

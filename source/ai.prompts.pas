@@ -26,15 +26,24 @@ type
 
 function SystemPrompt(const Input: TAiPromptInput): String;
 function TaskPrompt(const Input: TAiPromptInput): String;
+// False when the task lacks its input: a question for Generate, SQL for the others, an error
+// message for Fix error. Servers reject empty user messages.
+function IsTaskInputComplete(const Input: TAiPromptInput): Boolean;
 
 // System message, then History (earlier turns of this conversation), then the task message
 function BuildMessages(const Input: TAiPromptInput; const History: TAiChatMessages): TAiChatMessages;
 
 implementation
 
+// A fence longer than any backtick run inside the SQL, so the SQL cannot close it early
 function SqlFence(const Sql: String): String;
+var
+  Fence: String;
 begin
-  Result := '```sql' + #10 + Sql.Trim + #10 + '```';
+  Fence := '```';
+  while Pos(Fence, Sql) > 0 do
+    Fence := Fence + '`';
+  Result := Fence + 'sql' + #10 + Sql.Trim + #10 + Fence;
 end;
 
 function SystemPrompt(const Input: TAiPromptInput): String;
@@ -94,6 +103,16 @@ begin
         + 'Write the corrected SQL in one ```sql fenced block. It must fix the error, so do not '
         + 'repeat the failing statement unchanged. Then explain the cause in one or two sentences.',
         Input.UserText);
+  end;
+end;
+
+function IsTaskInputComplete(const Input: TAiPromptInput): Boolean;
+begin
+  case Input.Task of
+    atGenerate: Result := Input.UserText.Trim <> '';
+    atExplain, atOptimize: Result := Input.Sql.Trim <> '';
+    atFixError: Result := (Input.Sql.Trim <> '') and (Input.ErrorMessage.Trim <> '');
+    else Result := False;
   end;
 end;
 

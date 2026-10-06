@@ -23,6 +23,8 @@ type
     procedure RemarkAppended;
     procedure MessagesOrderSystemHistoryTask;
     procedure SystemPrefixStableAcrossQuestions;
+    procedure SqlWithBackticksGetsLongerFence;
+    procedure TaskInputCompleteness;
   end;
 
 implementation
@@ -139,6 +141,32 @@ begin
   B := Input(atFixError);
   B.UserText := 'another question';
   AssertEquals('same system message for the same session state', SystemPrompt(A), SystemPrompt(B));
+end;
+
+procedure TAiPromptsTest.SqlWithBackticksGetsLongerFence;
+var
+  I: TAiPromptInput;
+begin
+  I := Input(atExplain);
+  I.UserText := '';
+  I.Sql := 'SELECT 1 -- ```x```';
+  AssertTrue(TaskPrompt(I).EndsWith(#10'````sql'#10'SELECT 1 -- ```x```'#10'````'));
+end;
+
+procedure TAiPromptsTest.TaskInputCompleteness;
+var
+  I: TAiPromptInput;
+begin
+  I := Input(atGenerate);
+  AssertTrue(IsTaskInputComplete(I));
+  I.UserText := '  ';
+  AssertFalse('empty question', IsTaskInputComplete(I));
+  I := Input(atExplain);
+  I.Sql := '';
+  AssertFalse('no sql', IsTaskInputComplete(I));
+  I := Input(atFixError);
+  I.ErrorMessage := '';
+  AssertFalse('no error', IsTaskInputComplete(I));
 end;
 
 initialization
