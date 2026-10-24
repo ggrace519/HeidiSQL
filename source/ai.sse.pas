@@ -25,7 +25,7 @@ type
     FHasData: Boolean;
     FSkipNextLF: Boolean;
     procedure ProcessLine(const Line: RawByteString);
-    procedure Dispatch;
+    procedure DispatchEvent;
   public
     constructor Create(OnEvent: TSseEventProc);
     // Feed a chunk of the response body. Chunks may split lines and even CRLF pairs.
@@ -96,7 +96,7 @@ var
   Field, Value: String;
 begin
   if Line = '' then begin
-    Dispatch;
+    DispatchEvent;
     Exit;
   end;
   if Line[1] = ':' then
@@ -122,7 +122,7 @@ begin
   // "id" and "retry" are not needed for one-shot HTTP responses
 end;
 
-procedure TSseParser.Dispatch;
+procedure TSseParser.DispatchEvent;
 begin
   if FHasData and Assigned(FOnEvent) then
     FOnEvent(FEventName, FData);
@@ -137,7 +137,7 @@ begin
     ProcessLine(FLine);
     FLine := '';
   end;
-  Dispatch;
+  DispatchEvent;
 end;
 
 end.

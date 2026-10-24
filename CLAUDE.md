@@ -19,6 +19,8 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
   `out/tests/ai_smoke http://127.0.0.1:11434/v1 qwen2.5:7b` (add `--key-env NAME` for a key,
   `--models` to list models, `--cancel-after MS` to test cancelling, `--insecure` / `--ca-file`).
 - The TLS tests need the `openssl` command line tool (they are skipped without it).
+- `HEIDISQL_TEST_KEYCHAIN=1 make test` also round-trips a dummy entry through the real keychain
+  (Secret Service / Credential Manager); without it that test is skipped. CI sets it on Windows.
 
 ## Branches
 - `lazarus` = released branch, where upstream is merged in. `develop` = integration branch.

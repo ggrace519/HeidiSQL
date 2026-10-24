@@ -21,6 +21,7 @@ type
     procedure NewProfilesGetDistinctIds;
     procedure ValidateFindsProblems;
     procedure ValidateAcceptsGoodProfile;
+    procedure ValidateMissingCaFile;
     procedure JsonRoundTrip;
     procedure JsonNeverContainsKeyValue;
     procedure ResolveFallsBackToDefault;
@@ -96,6 +97,15 @@ begin
   AssertTrue(ValidateAiProfile(P) = [ppNoName, ppBadUrl, ppNoModel, ppNoKeyName, ppContextSize, ppTimeout]);
 end;
 
+procedure TAiProfilesTest.ValidateMissingCaFile;
+var
+  P: TAiProfile;
+begin
+  P := Ollama;
+  P.ExtraCaFile := '/nonexistent/ca.pem';
+  AssertTrue(ValidateAiProfile(P) = [ppCaFileMissing]);
+end;
+
 procedure TAiProfilesTest.ValidateAcceptsGoodProfile;
 var
   P: TAiProfile;
@@ -122,6 +132,8 @@ begin
   B.Temperature := -1;
   B.MaxContextChars := 40000;
   B.IoTimeoutSec := 60;
+  B.AllowUntrustedTls := True;
+  B.ExtraCaFile := '/etc/ssl/company-ca.pem';
   FList.Add(A);
   FList.Add(B);
   FList.DefaultId := B.Id;
@@ -139,6 +151,9 @@ begin
     AssertEquals(-1, Other[1].Temperature, 1e-9);
     AssertEquals(40000, Other[1].MaxContextChars);
     AssertEquals(60, Other[1].IoTimeoutSec);
+    AssertTrue('tls flag', Other[1].AllowUntrustedTls);
+    AssertEquals('/etc/ssl/company-ca.pem', Other[1].ExtraCaFile);
+    AssertFalse('verified by default', Other[0].AllowUntrustedTls);
   finally
     Other.Free;
   end;

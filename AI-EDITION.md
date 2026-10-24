@@ -1,6 +1,6 @@
 # HeidiSQL AI Edition
 
-*As of 2026-10-05, version 0.1.0 (in development).*
+*As of 2026-10-06, version 0.1.0 (in development).*
 
 This fork of the HeidiSQL Lazarus/FreePascal port adds an AI assistant that helps write and
 understand SQL for the database you are connected to. It is developed on top of the upstream
@@ -32,6 +32,33 @@ changed. The offer appears only once, also when declined. To bring settings over
 
 Portable mode (a `portable.lock` file next to the executable) keeps its settings next to the
 executable as before, and is never offered a copy.
+
+## AI providers
+
+**Tools > Preferences > AI providers** lists the AI servers the assistant can use. Each provider
+has a base URL (usually ending in `/v1`), a model and an API key source. **Test** connects and
+fills the model list. The provider marked with ★ is the default.
+
+| Server | Base URL | API key |
+|---|---|---|
+| Ollama (local) | `http://localhost:11434/v1` | None |
+| LM Studio (local) | `http://localhost:1234/v1` | None |
+| OpenRouter | `https://openrouter.ai/api/v1` | Keychain entry |
+| OpenAI | `https://api.openai.com/v1` | Keychain entry |
+
+API keys are never stored in HeidiSQL's settings or in `ai-providers.json`. A provider names
+where the key is:
+
+- **Keychain entry:** the system keychain. **Store key...** asks for the key and saves it: in the
+  Secret Service (GNOME Keyring, KWallet, KeePassXC) on Linux, or the Credential Manager on
+  Windows. On macOS, run the Terminal command that **Store key...** copies to the clipboard.
+- **Environment variable:** read when a request starts. Programs started from a desktop menu may
+  not see variables set in a shell profile.
+
+HTTPS certificates and host names are verified against the system's trusted certificates. For a
+server with a self-signed certificate, tick **Accept untrusted HTTPS certificates**, or add its
+CA in **Extra CA file**. Providers are saved in `ai-providers.json` in the settings folder;
+**File > Export settings** does not include them.
 
 ## Building
 

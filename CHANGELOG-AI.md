@@ -5,6 +5,13 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 ## [Unreleased]
 
 ### Added
+- **AI providers** in Preferences: define the AI servers the assistant can use (local Ollama, LM
+  Studio, vLLM, OpenRouter, OpenAI or any OpenAI-compatible server), test the connection, which
+  lists the server's models, and store API keys in the system keychain (Secret Service on Linux,
+  Credential Manager on Windows; on macOS a Terminal command is offered). Keys are never written to
+  HeidiSQL's settings. HTTPS certificates are verified; self-signed servers can be allowed per
+  provider, and an extra CA file can be added. A new installation starts with a "Local Ollama"
+  provider.
 - The AI Edition keeps its settings in its own folder (`heidisql-ai`), so it can run next to a
   stock HeidiSQL without the two overwriting each other's sessions, tabs and backups.
 - On first start, the AI Edition offers to copy sessions, preferences, snippets, highlighters and
