@@ -19,6 +19,14 @@ function Utf8Truncate(const Text: String; MaxBytes: Integer; const Suffix: Strin
 // - text before a lone </think>, when the server opened the block in the prompt template.
 function StripThinking(const Answer: String): String;
 
+// Replaces every occurrence of Secret in Text with "***", for error texts that a server may
+// have filled with the API key. Secrets shorter than MINREDACTLEN are left alone, as replacing
+// such short strings would garble ordinary words.
+function RedactSecret(const Text, Secret: String): String;
+
+const
+  MINREDACTLEN = 4;
+
 implementation
 
 const
@@ -64,6 +72,13 @@ begin
     Delete(Result, OpenPos, ClosePos + Length(CLOSETAG) - OpenPos);
   until False;
   Result := Result.Trim;
+end;
+
+function RedactSecret(const Text, Secret: String): String;
+begin
+  Result := Text;
+  if Length(Secret) >= MINREDACTLEN then
+    Result := StringReplace(Result, Secret, '***', [rfReplaceAll]);
 end;
 
 end.

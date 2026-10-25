@@ -243,7 +243,7 @@ type
     asReformatter, asReformatterNoDialog, asAlwaysGenerateFilter, asDisplayReverseForeignKeys,
     asGenerateDataNumRows, asGenerateDataNullAmount, asWebOnceAction, asDisplayLogPanel, asDisplayTreeFilters,
     // AI Edition, per session
-    asAiEnabled, asAiProfileId, asAiContextNotes,
+    asAiEnabled, asAiProfileId, asAiContextNotes, asAiPanelVisible, asAiPanelWidth,
     asUnused);
   TAppSetting = record
     Name: String;
@@ -3981,6 +3981,9 @@ begin
   InitSetting(asAiEnabled,                        'AiEnabled',                             0, False, '', True);
   InitSetting(asAiProfileId,                      'AiProfileId',                           0, False, '', True);
   InitSetting(asAiContextNotes,                   'AiContextNotes',                        0, False, '', True);
+  // AI Edition, assistant panel in the main window
+  InitSetting(asAiPanelVisible,                   'AiPanelVisible',                        0, False);
+  InitSetting(asAiPanelWidth,                     'AiPanelWidth',                          360);
   InitSetting(asActionShortcut1,                  'Shortcut1_%s',                          0);
   InitSetting(asActionShortcut2,                  'Shortcut2_%s',                          0);
   InitSetting(asHighlighterForeground,            'SQL Attr %s Foreground',                0);

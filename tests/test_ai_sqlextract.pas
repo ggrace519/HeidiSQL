@@ -10,6 +10,8 @@ uses
 type
   TAiTextTest = class(TTestCase)
   published
+    procedure RedactSecretReplacesAll;
+    procedure RedactSecretSkipsTooShort;
     procedure ThinkBlocksRemoved;
     procedure UnclosedThinkBlockRemovedToEnd;
     procedure LoneClosingThinkTag;
@@ -55,6 +57,18 @@ type
 implementation
 
 { TAiTextTest }
+
+procedure TAiTextTest.RedactSecretReplacesAll;
+begin
+  AssertEquals('bad key *** (***)', RedactSecret('bad key abcd (abcd)', 'abcd'));
+  AssertEquals('unchanged', 'no key here', RedactSecret('no key here', 'sk-12345678'));
+end;
+
+procedure TAiTextTest.RedactSecretSkipsTooShort;
+begin
+  AssertEquals('empty key', 'the text', RedactSecret('the text', ''));
+  AssertEquals('3 chars would garble words', 'the text', RedactSecret('the text', 'the'));
+end;
 
 procedure TAiTextTest.ThinkBlocksRemoved;
 begin

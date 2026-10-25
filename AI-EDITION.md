@@ -1,6 +1,6 @@
 # HeidiSQL AI Edition
 
-*As of 2026-10-06, version 0.1.0 (in development).*
+*As of 2026-10-25, version 0.1.0 (in development).*
 
 This fork of the HeidiSQL Lazarus/FreePascal port adds an AI assistant that helps write and
 understand SQL for the database you are connected to. It is developed on top of the upstream
@@ -78,6 +78,30 @@ sensitive databases, use a local provider such as Ollama, so nothing leaves the 
 **File > Export settings** includes these session settings (also the notes), but not the AI
 providers. After importing on another computer, sessions whose provider does not exist there
 show "(removed provider)" until you choose one.
+
+## Generating SQL
+
+**Query > AI assistant panel** shows the assistant on the right side of the main window.
+**Query > Generate SQL with AI...** (Ctrl+Shift+G, also in the query editor's context menu) opens
+it and puts the cursor into its prompt box.
+
+1. Select a database (or one of its tables) in the tree. Without one, Generate SQL stays disabled,
+   because the model needs the schema to write correct SQL.
+2. Describe the query and press **Generate SQL** or Ctrl+Enter. The answer streams into the panel.
+3. **Insert** puts the SQL at the cursor of the query editor, **Replace** replaces the editor's
+   text, **Copy** copies it. Generated SQL is never executed; Ctrl+Z undoes Insert and Replace.
+   When an answer has several SQL blocks, a list chooses which one to use.
+4. SQL that changes data (DML) or the structure (DDL) gets a red warning.
+
+Each query tab has its own conversation; follow-up questions include the last answers. **Clear**
+starts over, closing the tab forgets it. Conversations are not saved. **Context sent...** shows
+exactly what went to the provider with the last question. Only one question runs at a time;
+**Cancel** stops it.
+
+Tables mentioned in the question or in the editor's SQL, the table selected in the tree, and
+their foreign key neighbours are sent with their columns; other tables only by name, within the
+provider's context size. While a query is running, only schema data that is already loaded is
+sent.
 
 ## Building
 
