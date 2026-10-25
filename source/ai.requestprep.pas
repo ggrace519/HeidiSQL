@@ -12,6 +12,13 @@ uses
   SysUtils, ai.types, ai.profiles, ai.http, ai.hostcontext;
 
 type
+  TAiTaskRequest = record
+    Task: TAiTask;
+    UserText: String;      // The question (Generate) or an optional remark (other tasks)
+    Sql: String;           // SQL for Explain/Optimize/Fix error; empty: the editor's SQL
+    ErrorMessage: String;  // Server error, for Fix error
+  end;
+
   TAiPrepared = record
     Spec: TAiRequestSpec;
     Profile: TAiProfile;
@@ -23,14 +30,14 @@ type
   end;
 
 // Returns '' and fills Prepared, or returns a message for the user explaining what is missing.
-function PrepareAiRequest(const Host: TAiHostState; Task: TAiTask; const UserText: String;
+function PrepareAiRequest(const Host: TAiHostState; const Request: TAiTaskRequest;
   const History: TAiChatMessages; out Prepared: TAiPrepared): String;
 
 implementation
 
 uses
   apphelpers, ai.session, ai.appprofiles, ai.keystore, ai.prompts, ai.requestbuild, ai.context,
-  ai.schemasource, ai.uitext;
+  ai.schemasource, ai.uitext, ai.text;
 
 function ResolveProfile(const ProfileId: String; out Profile: TAiProfile): String;
 var
@@ -56,7 +63,25 @@ begin
       + sLineBreak + ProfileProblemsText(Problems);
 end;
 
-function PrepareAiRequest(const Host: TAiHostState; Task: TAiTask; const UserText: String;
+function TaskTitle(const Request: TAiTaskRequest; const Sql: String): String;
+var
+  FirstLine: String;
+begin
+  FirstLine := Trim(Sql);
+  if Pos(#10, FirstLine) > 0 then
+    FirstLine := Trim(Copy(FirstLine, 1, Pos(#10, FirstLine)-1)) + ' ...';
+  FirstLine := Utf8Truncate(FirstLine, 80);
+  case Request.Task of
+    atExplain: Result := f_('Explain: %s', [FirstLine]);
+    atOptimize: Result := f_('Optimize: %s', [FirstLine]);
+    atFixError: Result := f_('Fix error: %s', [Utf8Truncate(Trim(Request.ErrorMessage), 80)]);
+    else Result := Trim(Request.UserText);
+  end;
+  if (Request.Task <> atGenerate) and (Trim(Request.UserText) <> '') then
+    Result := Result + sLineBreak + '  ' + Trim(Request.UserText);
+end;
+
+function PrepareAiRequest(const Host: TAiHostState; const Request: TAiTaskRequest;
   const History: TAiChatMessages; out Prepared: TAiPrepared): String;
 var
   Settings: TAiSessionSettings;
@@ -90,20 +115,29 @@ begin
       + KeyResultText(KeyResult, Prepared.Profile, KeyProblem));
 
   Input := Default(TAiPromptInput);
-  Input.Task := Task;
+  Input.Task := Request.Task;
   Input.Dialect := Host.Dialect;
   Input.DatabaseName := Host.Database;
   Input.ContextNotes := Settings.ContextNotes;
-  Input.UserText := UserText;
-  if Task <> atGenerate then
-    Input.Sql := Host.Sql;
-  if not IsTaskInputComplete(Input) then
-    Exit(_('Type a question first.'));
+  Input.UserText := Request.UserText;
+  if Request.Task <> atGenerate then begin
+    Input.Sql := Request.Sql;
+    if Trim(Input.Sql) = '' then
+      Input.Sql := Host.Sql;
+  end;
+  Input.ErrorMessage := Request.ErrorMessage;
+  if not IsTaskInputComplete(Input) then begin
+    case Request.Task of
+      atGenerate: Exit(_('Type a question first.'));
+      atFixError: Exit(_('No failed query to fix in this query tab.'));
+      else Exit(_('The query editor is empty. Write or select the SQL first.'));
+    end;
+  end;
 
   SchemaInput := Default(TAiSchemaInput);
   SchemaInput.Database := Host.Database;
-  SchemaInput.Prompt := UserText;
-  SchemaInput.Sql := Host.Sql;
+  SchemaInput.Prompt := Request.UserText;
+  SchemaInput.Sql := Input.Sql + #10 + Host.Sql;
   SchemaInput.ActiveObject := Host.ActiveObject;
   SchemaInput.Budget := DefaultContextBudget;
   SchemaInput.Budget.MaxChars := Prepared.Profile.MaxContextChars;
@@ -111,7 +145,7 @@ begin
   Input.SchemaContext := Schema.Context;
   Prepared.CacheOnly := Schema.CacheOnly;
 
-  Prepared.Title := UserText.Trim;
+  Prepared.Title := TaskTitle(Request, Input.Sql);
   Prepared.ContextSent := SystemPrompt(Input);
   Prepared.UserMessage := TaskPrompt(Input);
   Prepared.Spec := ChatRequestSpec(Prepared.Profile, Prepared.Key, BuildMessages(Input, History));

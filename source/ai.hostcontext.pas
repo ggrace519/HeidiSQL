@@ -9,7 +9,7 @@ unit ai.hostcontext;
 interface
 
 uses
-  SysUtils, dbconnection;
+  SysUtils, dbconnection, apphelpers;
 
 type
   TAiHostState = record
@@ -31,11 +31,14 @@ function QueryTabExists(TabNumber: Integer): Boolean;
 // Puts Sql into the editor of the given tab, at the cursor (replacing a selection) or replacing
 // the whole text. Never runs it. Returns False when the tab no longer exists.
 function PutSqlIntoQueryTab(TabNumber: Integer; const Sql: String; ReplaceAll: Boolean): Boolean;
+// SQL of the statement that failed in a finished query thread, '' without an error. With "send
+// batch in one go", the server ran a whole packet, so all of its statements are returned.
+function FailedStatementSql(Thread: TQueryThread): String;
 
 implementation
 
 uses
-  Classes, SynEdit, main, apphelpers, ai.conversations;
+  Classes, Math, SynEdit, main, ai.conversations;
 
 const
   // Only the start of a huge editor text is scanned for table names
@@ -118,6 +121,24 @@ begin
   Memo.Modified := True;
   if Memo.CanFocus then
     Memo.SetFocus;
+end;
+
+function FailedStatementSql(Thread: TQueryThread): String;
+var
+  i, Last: Integer;
+begin
+  Result := '';
+  if (Thread.ErrorMessage = '') or (Thread.BatchPosition >= Thread.Batch.Count) then
+    Exit;
+  Last := Thread.BatchPosition;
+  if Thread.BatchInOneGo then
+    Last := Min(Thread.Batch.Count, Thread.BatchPosition + Max(1, Thread.QueriesInPacket)) - 1;
+  for i:=Thread.BatchPosition to Last do begin
+    if Result <> '' then
+      Result := Result + ';' + sLineBreak;
+    Result := Result + Thread.Batch[i].SQL;
+  end;
+  Result := Copy(Result, 1, MAXSQLCHARS);
 end;
 
 end.

@@ -1482,7 +1482,7 @@ uses
   copytable, csv_detector, exportgrid, usermanager, rolemanagerpg, rolemanagermssql, reformatter, connections, sqlhelp, updatecheck,
   insertfiles, texteditor, preferences, table_editor, view, routine_editor, trigger_editor, event_editor, grideditlinks,
   crashdialog, selectdbobject,
-  ai.actions, ai.controller; // AI Edition
+  ai.actions, ai.controller, ai.hostcontext; // AI Edition
 
 {$R *.lfm}
 
@@ -3525,6 +3525,10 @@ begin
     end;
     ErrorDialog(Thread.ErrorMessage + ErrorHint);
   end;
+  // AI Edition: remember a failed statement for "Fix error", or forget it after a success
+  if Assigned(AiController) then
+    AiController.QueryFinished(Thread.TabNumber, Thread.Connection.Parameters.SessionPath,
+      FailedStatementSql(Thread), Thread.ErrorMessage);
 
   // Gather meta info for logging
   MetaInfo := _('Affected rows')+': '+FormatNumber(Thread.RowsAffected)+
