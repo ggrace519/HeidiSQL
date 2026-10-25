@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: HeidiSQL\n"
 "POT-Creation-Date: 2012-11-05 21:40\n"
-"PO-Revision-Date: 2026-07-27 19:34+0200\n"
+"PO-Revision-Date: 2026-10-19 08:37+0200\n"
 "Last-Translator: Ansgar Becker <anse@heidisql.com>\n"
 "Language-Team: English (http://www.transifex.com/projects/p/heidisql/language/en/)\n"
 "Language: en\n"
@@ -15,7 +15,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Generator: Poedit 3.9\n"
+"X-Generator: Poedit 3.10\n"
 
 #. AboutBox..Caption
 #: about.dfm:5
@@ -4157,6 +4157,14 @@ msgstr "The server did not return a non-zero value for the %s variable. Assuming
 msgid "Not implemented for this DBMS"
 msgstr "Not implemented for this DBMS"
 
+#: dbconnection.pas:3036
+msgid "Could not load any Firebird/Interbase client library (fbclient, gds32 or ibclient). Install one, or check the library setting in your session."
+msgstr "Could not load any Firebird/Interbase client library (fbclient, gds32 or ibclient). Install one, or check the library setting in your session."
+
+#: dbconnection.pas:3044
+msgid "Firebird/Interbase client already loaded from library %s, ignoring selected library %s"
+msgstr "Firebird/Interbase client already loaded from library %s, ignoring selected library %s"
+
 #: dbconnection.pas:3180
 msgid "Real Hostname"
 msgstr "Real Hostname"
@@ -4165,7 +4173,8 @@ msgstr "Real Hostname"
 msgid "Server OS"
 msgstr "Server OS"
 
-#: dbconnection.pas:3182 tabletools.pas:1198
+#: dbconnection.pas:3182 tabletools.pas:1198 dbconnection.pas:4865
+#: dbconnection.pas:7768
 msgid "Server version"
 msgstr "Server version"
 
@@ -4216,6 +4225,18 @@ msgstr "Could not determine name of table."
 #: dbconnection.pas:4859
 msgid "Column #%d has an undefined origin: %s"
 msgstr "Column #%d has an undefined origin: %s"
+
+#: dbconnection.pas:4864 dbconnection.pas:7767
+msgid "Server type"
+msgstr "Server type"
+
+#: dbconnection.pas:4866 dbconnection.pas:7769
+msgid "Client name"
+msgstr "Client name"
+
+#: dbconnection.pas:4867
+msgid "Client library"
+msgstr "Client library"
 
 #: dbconnection.pas:4877
 msgid "Cannot compose WHERE clause - column missing: %s"
@@ -5800,6 +5821,19 @@ msgstr "Folder in selected folder"
 msgid "More"
 msgstr "More"
 
+#. Session manager > Start tab
+msgid "Import settings from Windows registry"
+msgstr "Import settings from Windows registry"
+
+#. Session manager > Start tab
+msgid "Previous versions of HeidiSQL stored your settings and sessions in the Windows registry. Click on the button above to import them, so they will appear in this application. This import is only needed once. If you have an exported settings file (.txt), use the top button instead, which imports the same from that file."
+msgstr "Previous versions of HeidiSQL stored your settings and sessions in the Windows registry. Click on the button above to import them, so they will appear in this application. This import is only needed once. If you have an exported settings file (.txt), use the top button instead, which imports the same from that file."
+
+#. Session manager > Start tab
+msgid "Imported settings and sessions from the Windows registry."
+msgstr "Imported settings and sessions from the Windows registry."
+
+
 #. MessageDialog()
 msgid "Missing \"No\" button in %() call"
 msgstr "Missing \"No\" button in %() call"
@@ -7076,3 +7110,176 @@ msgstr "Keychain entry \"%s\", not checked yet."
 
 msgid "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
 msgstr "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
+msgid "Variables in MS SQL only exist within the batch they are declared in. Your queries were sent one by one. Activate \"%s\" in the drop-down menu of the Run button to send them as one batch."
+msgstr "Variables in MS SQL only exist within the batch they are declared in. Your queries were sent one by one. Activate \"%s\" in the drop-down menu of the Run button to send them as one batch."
+
+#. RoleManagerPgForm..Caption
+msgid "PostgreSQL role manager"
+msgstr "PostgreSQL role manager"
+
+#. RoleManagerPgForm..tabLogin..Caption
+msgid "Login details"
+msgstr "Login details"
+
+#. RoleManagerPgForm..treeRoles..Header..Column 'Role'
+#. RoleManagerPgForm..treeRoles..Column[0]
+msgid "Role"
+msgstr "Role"
+
+#. RoleManagerPgForm..treeRoles..Column 'Superuser'
+msgid "Superuser"
+msgstr "Superuser"
+
+#. RoleManagerPgForm..treeRoles..Column 'Valid until'
+msgid "Valid until"
+msgstr "Valid until"
+
+#. RoleManagerPgForm..treeRoles..Column 'Conn. limit'
+msgid "Conn. limit"
+msgstr "Conn. limit"
+
+#. RoleManagerPgForm..lblName..Caption
+msgid "Role name:"
+msgstr "Role name:"
+
+#. RoleManagerPgForm..checkGroupAttributes..Caption
+msgid "Role attributes"
+msgstr "Role attributes"
+
+#. RoleManagerPgForm..checkGroupAttributes..Item 'Login allowed'
+msgid "Login allowed"
+msgstr "Login allowed"
+
+#. RoleManagerPgForm..checkGroupAttributes..Item 'Create databases'
+msgid "Create databases"
+msgstr "Create databases"
+
+#. RoleManagerPgForm..checkGroupAttributes..Item 'Create roles'
+msgid "Create roles"
+msgstr "Create roles"
+
+#. RoleManagerPgForm..checkGroupAttributes..Item 'Inherit rights'
+msgid "Inherit rights"
+msgstr "Inherit rights"
+
+#. RoleManagerPgForm..checkGroupAttributes..Item 'Replication'
+msgid "Replication"
+msgstr "Replication"
+
+#. RoleManagerPgForm..checkGroupAttributes..Item 'Bypass row level security'
+msgid "Bypass row level security"
+msgstr "Bypass row level security"
+
+#. RoleManagerPgForm..lblConnLimit..Caption
+msgid "Connection limit:"
+msgstr "Connection limit:"
+
+#. RoleManagerPgForm..editPassword..TextHint
+msgid "Empty = keep current password"
+msgstr "Empty = keep current password"
+
+#. RoleManagerPgForm..chkClearPassword..Caption
+msgid "Clear password"
+msgstr "Clear password"
+
+#. RoleManagerPgForm..lblMembership..Caption
+msgid "Member of:"
+msgstr "Member of:"
+
+#. RoleManagerPgForm..treeMemberships..Column 'Member of'
+msgid "Member of"
+msgstr "Member of"
+
+#. RoleManagerPgForm..chkAdminOption..Caption
+msgid "Grant admin option to selected role"
+msgstr "Grant admin option to selected role"
+
+#. Title of confirmation dialog when switching role or closing with unsaved changes
+msgid "Unsaved changes"
+msgstr "Unsaved changes"
+
+#. Message of confirmation dialog when switching role or closing with unsaved changes
+msgid "Discard unsaved changes on role?"
+msgstr "Discard unsaved changes on role?"
+
+#. Title of delete confirmation dialog in PostgreSQL role manager
+msgid "Delete role"
+msgstr "Delete role"
+
+#. Message of delete confirmation dialog in PostgreSQL role manager
+msgid "Really delete role \"%s\"?"
+msgstr "Really delete role \"%s\"?"
+
+#. Error message when saving a role without a name
+msgid "Please enter a role name."
+msgstr "Please enter a role name."
+
+#. Error message when a role with the same name exists already
+msgid "A role named \"%s\" already exists."
+msgstr "A role named \"%s\" already exists."
+
+#. RoleManagerMssqlForm..Caption
+msgid "MS SQL Server login manager"
+msgstr "MS SQL Server login manager"
+
+#. RoleManagerMssqlForm..tabAttributes..lblName..Caption
+msgid "Login name:"
+msgstr "Login name:"
+
+#. RoleManagerMssqlForm..tabAttributes..checkGroupAttributes..Caption
+msgid "Login attributes"
+msgstr "Login attributes"
+
+#. RoleManagerMssqlForm..tabAttributes..checkGroupAttributes..Items[0]
+msgid "Enabled"
+msgstr "Enabled"
+
+#. RoleManagerMssqlForm..tabAttributes..checkGroupAttributes..Items[1]
+msgid "Enforce password policy"
+msgstr "Enforce password policy"
+
+#. RoleManagerMssqlForm..tabAttributes..checkGroupAttributes..Items[2]
+msgid "Enforce password expiration"
+msgstr "Enforce password expiration"
+
+#. RoleManagerMssqlForm..tabLogin..lblDefaultDatabase..Caption
+msgid "Default database:"
+msgstr "Default database:"
+
+#. RoleManagerMssqlForm..treeLogins..Header..Column 'Default database'
+#. RoleManagerMssqlForm..treeLogins..Column[3]
+msgid "Default database"
+msgstr "Default database"
+
+#. RoleManagerMssqlForm..pnlMembership..lblMembership..Caption
+msgid "Member of server roles:"
+msgstr "Member of server roles:"
+
+#. RoleManagerMssqlForm..treeMemberships..Header..Column 'Server role'
+#. RoleManagerMssqlForm..treeMemberships..Column[0]
+msgid "Server role"
+msgstr "Server role"
+
+msgid "Please enter a login name."
+msgstr "Please enter a login name."
+
+msgid "Please enter a password for the new login."
+msgstr "Please enter a password for the new login."
+
+msgid "A login named \"%s\" already exists."
+msgstr "A login named \"%s\" already exists."
+
+msgid "Discard unsaved changes on login?"
+msgstr "Discard unsaved changes on login?"
+
+msgid "Delete login"
+msgstr "Delete login"
+
+msgid "Really delete login \"%s\"?"
+msgstr "Really delete login \"%s\"?"
+
+msgid "Windows"
+msgstr "Windows"
+
+msgid "Windows group"
+msgstr "Windows group"
