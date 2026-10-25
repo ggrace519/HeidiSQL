@@ -35,7 +35,7 @@ type
 implementation
 
 uses
-  apphelpers, ai.openai, ai.requestbuild, ai.uitext;
+  apphelpers, ai.openai, ai.requestbuild, ai.uitext, ai.text;
 
 constructor TAiModelFetch.Create(AOwner: TComponent);
 begin
@@ -91,9 +91,7 @@ begin
   FTimer.Enabled := False;
   Mailbox := FMailbox;
   Done := FOnDone;
-  Detail := Mailbox.ErrorMessage;
-  if Length(FKey) >= 8 then
-    Detail := StringReplace(Detail, FKey, '***', [rfReplaceAll]);
+  Detail := RedactSecret(Mailbox.ErrorMessage, FKey);
   FMailbox := nil;
   FOnDone := nil;
   FKey := '';

@@ -14,42 +14,38 @@ uses
 type
   TAiHostState = record
     HasQueryTab: Boolean;
-    TabUid: String;
+    TabNumber: Integer;        // Stable while the tab exists; the tab's Uid is blanked by "Clear"
+    ConversationKey: String;   // Tab and session, see ai.conversations
     Connection: TDBConnection; // nil when not connected
     SessionName: String;
     SessionPath: String;       // Empty for sessions which are not saved
     Database: String;
     ActiveObject: String;      // Selected table or view in the database tree
-    Sql: String;               // Selected text in the editor, or the whole editor text
+    Sql: String;               // Selected text or the whole editor text, only with WithSql
     Dialect: String;           // e.g. "MySQL 8.0.35"
   end;
 
-function CaptureHostState: TAiHostState;
-function QueryTabExists(const TabUid: String): Boolean;
+// WithSql also reads the editor text, which can be large; only needed when sending
+function CaptureHostState(WithSql: Boolean): TAiHostState;
+function QueryTabExists(TabNumber: Integer): Boolean;
 // Puts Sql into the editor of the given tab, at the cursor (replacing a selection) or replacing
 // the whole text. Never runs it. Returns False when the tab no longer exists.
-function PutSqlIntoQueryTab(const TabUid, Sql: String; ReplaceAll: Boolean): Boolean;
+function PutSqlIntoQueryTab(TabNumber: Integer; const Sql: String; ReplaceAll: Boolean): Boolean;
 
 implementation
 
 uses
-  Classes, SynEdit, main, apphelpers;
+  Classes, SynEdit, main, apphelpers, ai.conversations;
 
 const
   // Only the start of a huge editor text is scanned for table names
   MAXSQLCHARS = 100000;
 
-function FindTab(const TabUid: String): TQueryTab;
-var
-  Tab: TQueryTab;
+function FindTab(TabNumber: Integer): TQueryTab;
 begin
   Result := nil;
-  if (TabUid = '') or (MainForm = nil) then
-    Exit;
-  for Tab in MainForm.QueryTabs do begin
-    if Tab.Uid = TabUid then
-      Exit(Tab);
-  end;
+  if (TabNumber > 0) and Assigned(MainForm) then
+    Result := MainForm.QueryTabs.TabByNumber(TabNumber);
 end;
 
 function SessionSaved(const Path: String): Boolean;
@@ -57,7 +53,7 @@ begin
   Result := (Path <> '') and AppSettings.SessionPathExists(Path);
 end;
 
-function CaptureHostState: TAiHostState;
+function CaptureHostState(WithSql: Boolean): TAiHostState;
 var
   Tab: TQueryTab;
   Conn: TDBConnection;
@@ -69,12 +65,14 @@ begin
   Result.HasQueryTab := MainForm.QueryTabs.HasActiveTab;
   if Result.HasQueryTab then begin
     Tab := MainForm.QueryTabs.ActiveTab;
-    Result.TabUid := Tab.Uid;
-    if Tab.Memo.SelAvail then
-      Result.Sql := Tab.Memo.SelText
-    else
-      Result.Sql := Tab.Memo.Text;
-    Result.Sql := Copy(Result.Sql, 1, MAXSQLCHARS);
+    Result.TabNumber := Tab.Number;
+    if WithSql then begin
+      if Tab.Memo.SelAvail then
+        Result.Sql := Tab.Memo.SelText
+      else
+        Result.Sql := Tab.Memo.Text;
+      Result.Sql := Copy(Result.Sql, 1, MAXSQLCHARS);
+    end;
   end;
 
   Conn := MainForm.ActiveConnection;
@@ -84,6 +82,8 @@ begin
   Result.SessionName := Conn.Parameters.SessionName;
   if SessionSaved(Conn.Parameters.SessionPath) then
     Result.SessionPath := Conn.Parameters.SessionPath;
+  if Result.HasQueryTab then
+    Result.ConversationKey := ConversationKey(Result.TabNumber, Conn.Parameters.SessionPath);
   Result.Database := MainForm.ActiveDatabase;
   Result.Dialect := Conn.Parameters.NetTypeName(False) + ' ' + Conn.ServerVersionStr;
   Obj := MainForm.ActiveDbObj;
@@ -91,17 +91,17 @@ begin
     Result.ActiveObject := Obj.Name;
 end;
 
-function QueryTabExists(const TabUid: String): Boolean;
+function QueryTabExists(TabNumber: Integer): Boolean;
 begin
-  Result := FindTab(TabUid) <> nil;
+  Result := FindTab(TabNumber) <> nil;
 end;
 
-function PutSqlIntoQueryTab(const TabUid, Sql: String; ReplaceAll: Boolean): Boolean;
+function PutSqlIntoQueryTab(TabNumber: Integer; const Sql: String; ReplaceAll: Boolean): Boolean;
 var
   Tab: TQueryTab;
   Memo: TSynEdit;
 begin
-  Tab := FindTab(TabUid);
+  Tab := FindTab(TabNumber);
   Result := Assigned(Tab);
   if not Result then
     Exit;

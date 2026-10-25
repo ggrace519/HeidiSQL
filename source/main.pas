@@ -13176,7 +13176,7 @@ begin
   //LockWindowUpdate(PageControlMain.Handle);
   // AI Edition: stop a request of this tab and forget its conversation
   if Assigned(AiController) then
-    AiController.QueryTabClosed(QueryTabs[PageIndex-tabQuery.PageIndex].Uid);
+    AiController.QueryTabClosed(QueryTabs[PageIndex-tabQuery.PageIndex].Number);
   PageControlMain.Pages[PageIndex].Free;
   QueryTabs.Delete(PageIndex-tabQuery.PageIndex);
   PageControlMain.ActivePageIndex := NewPageIndex;

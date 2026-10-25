@@ -28,7 +28,8 @@ type
   end;
 
 const
-  // Fetching column details stops after this time; remaining tables are listed by name
+  // No further tables are fetched in detail after this time; the remaining ones are listed by
+  // name. A single table's fetch is not interrupted, so a slow server can still exceed it.
   SCHEMAFETCHBUDGETMS = 3000;
 
 function GatherSchemaContext(Conn: TDBConnection; const Input: TAiSchemaInput): TAiSchemaResult;

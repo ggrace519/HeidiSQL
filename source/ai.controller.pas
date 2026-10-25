@@ -10,21 +10,23 @@ unit ai.controller;
 interface
 
 uses
-  Classes, SysUtils, Controls, ExtCtrls, ai.types, ai.http, ai.profiles, ai.conversations,
+  Classes, SysUtils, Controls, ExtCtrls, Forms, ai.types, ai.http, ai.profiles, ai.conversations,
   ai.panel;
 
 type
   TAiController = class(TComponent)
   private
+    FForm: TCustomForm;
     FPanel: TAiPanel;
     FSplitter: TSplitter;
     FTimer: TTimer;
     FConversations: TAiConversations;
     FTracker: TAiRequestTracker;
     FMailbox: IAiMailbox;
+    FLastMailbox: IAiMailbox; // Also kept after a cancel, so Shutdown can wait for its worker
     FProfile: TAiProfile;
     FKey: String;
-    FShownTabUid: String;
+    FShownKey: String;
     FShutDown: Boolean;
     procedure TimerTick(Sender: TObject);
     procedure PanelSend(const Text: String);
@@ -44,7 +46,7 @@ type
     procedure Refresh;
     procedure Generate;
     procedure Cancel;
-    procedure QueryTabClosed(const TabUid: String);
+    procedure QueryTabClosed(TabNumber: Integer);
     // Cancels a running request and waits briefly for its worker thread
     procedure Shutdown;
     property PanelVisible: Boolean read GetPanelVisible write SetPanelVisible;
@@ -56,11 +58,12 @@ var
 implementation
 
 uses
-  apphelpers, ai.conversation, ai.hostcontext, ai.requestprep, ai.uitext;
+  Math, apphelpers, ai.conversation, ai.hostcontext, ai.requestprep, ai.uitext, ai.text;
 
 const
   DRAININTERVALMS = 50;
   SHUTDOWNWAITMS = 2000;
+  MINPANELWIDTH = 200;
 
 constructor TAiController.Create(AOwner: TComponent; Host: TWinControl);
 begin
@@ -75,7 +78,11 @@ begin
   FPanel := TAiPanel.Create(AOwner);
   FPanel.Parent := Host;
   FPanel.Align := alRight;
-  FPanel.Width := AppSettings.ReadInt(asAiPanelWidth);
+  // Stored unscaled like the other panel sizes, and kept within a usable range
+  FForm := AOwner as TCustomForm;
+  FPanel.Width := EnsureRange(FForm.ScaleDesignToForm(AppSettings.ReadInt(asAiPanelWidth)),
+    FForm.ScaleDesignToForm(MINPANELWIDTH),
+    Max(FForm.ScaleDesignToForm(MINPANELWIDTH), Host.ClientWidth div 2));
   FPanel.OnSend := PanelSend;
   FPanel.OnCancel := PanelCancel;
   FPanel.OnClear := PanelClear;
@@ -87,6 +94,7 @@ begin
   FSplitter.Align := alRight;
   FSplitter.Left := FPanel.Left - 1;
   FSplitter.ResizeStyle := rsPattern;
+  FSplitter.MinSize := FForm.ScaleDesignToForm(MINPANELWIDTH);
   SetPanelVisible(AppSettings.ReadBool(asAiPanelVisible));
 end;
 
@@ -98,6 +106,7 @@ begin
   if Assigned(FMailbox) then
     FMailbox.Cancel;
   FMailbox := nil;
+  FLastMailbox := nil;
   FTracker.Free;
   FConversations.Free;
   inherited;
@@ -125,20 +134,20 @@ var
 begin
   if not FPanel.Visible then
     Exit;
-  Host := CaptureHostState;
-  FShownTabUid := Host.TabUid;
+  Host := CaptureHostState(False);
+  FShownKey := Host.ConversationKey;
   FPanel.CanSend := Host.HasQueryTab and Assigned(Host.Connection) and (Host.Database <> '');
   if not Host.HasQueryTab then
     FPanel.SetStatus(_('Open a query tab to use the AI assistant.'), False)
   else if Host.Connection = nil then
     FPanel.SetStatus(_('Connect to a database to use the AI assistant.'), False)
-  else if FTracker.Busy and (not FTracker.BusyForTab(Host.TabUid)) then
+  else if FTracker.Busy and (not FTracker.BusyForTab(Host.ConversationKey)) then
     FPanel.SetStatus(_('Another query tab is waiting for an answer.'), False)
   else if Host.Database = '' then
     FPanel.SetStatus(_('Select a database in the tree first. Its tables and columns are sent with the question.'), True)
   else
     FPanel.SetStatus(f_('Session "%s", database "%s"', [Host.SessionName, Host.Database]), False);
-  FPanel.ShowConversation(FConversations.Find(Host.TabUid), FTracker.Busy);
+  FPanel.ShowConversation(FConversations.Find(Host.ConversationKey), FTracker.Busy);
 end;
 
 procedure TAiController.Generate;
@@ -157,26 +166,33 @@ var
 begin
   if FTracker.Busy then
     Exit;
-  Host := CaptureHostState;
+  Host := CaptureHostState(True);
   Conversation := nil;
   if Host.HasQueryTab then
-    Conversation := FConversations.Find(Host.TabUid);
-  if Assigned(Conversation) then
-    Problem := PrepareAiRequest(Host, atGenerate, Text, Conversation.History, Prepared)
-  else
-    Problem := PrepareAiRequest(Host, atGenerate, Text, nil, Prepared);
+    Conversation := FConversations.Find(Host.ConversationKey);
+  try
+    if Assigned(Conversation) then
+      Problem := PrepareAiRequest(Host, atGenerate, Text, Conversation.History, Prepared)
+    else
+      Problem := PrepareAiRequest(Host, atGenerate, Text, nil, Prepared);
+  except
+    // E.g. the server failed while reading the schema: report it here instead of a crash dialog
+    on E:Exception do
+      Problem := E.Message;
+  end;
   if Problem <> '' then begin
     FPanel.SetStatus(Problem, True);
     Exit;
   end;
 
-  Conversation := FConversations.Get(Host.TabUid);
+  Conversation := FConversations.Get(Host.ConversationKey);
   TurnId := Conversation.StartTurn(atGenerate, Prepared.Title, Prepared.UserMessage,
     Prepared.ContextSent);
-  FTracker.Start(Host.TabUid, TurnId);
+  FTracker.Start(Host.ConversationKey, TurnId);
   FProfile := Prepared.Profile;
   FKey := Prepared.Key;
   FMailbox := NewAiMailbox;
+  FLastMailbox := FMailbox;
   StartAiRequest(Prepared.Spec, FMailbox);
   FTimer.Enabled := True;
   FPanel.ClearPrompt;
@@ -189,10 +205,8 @@ end;
 
 function TAiController.Redact(const Text: String): String;
 begin
-  Result := Text;
   // Some providers echo the key in error texts
-  if Length(FKey) >= 8 then
-    Result := StringReplace(Result, FKey, '***', [rfReplaceAll]);
+  Result := RedactSecret(Text, FKey);
 end;
 
 procedure TAiController.TimerTick(Sender: TObject);
@@ -229,7 +243,7 @@ begin
     end;
     EndRequest;
     Refresh;
-  end else if FPanel.Visible and (FShownTabUid = FTracker.TabUid) then
+  end else if FPanel.Visible and (FShownKey = FTracker.TabUid) then
     FPanel.ShowConversation(Conversation, True);
 end;
 
@@ -265,10 +279,10 @@ procedure TAiController.PanelClear(Sender: TObject);
 var
   Host: TAiHostState;
 begin
-  Host := CaptureHostState;
-  if FTracker.BusyForTab(Host.TabUid) then
+  Host := CaptureHostState(False);
+  if FTracker.BusyForTab(Host.ConversationKey) then
     Exit;
-  FConversations.Drop(Host.TabUid);
+  FConversations.Drop(Host.ConversationKey);
   Refresh;
 end;
 
@@ -276,8 +290,8 @@ procedure TAiController.PanelPutSql(const Sql: String; ReplaceAll: Boolean);
 var
   Host: TAiHostState;
 begin
-  Host := CaptureHostState;
-  if not PutSqlIntoQueryTab(Host.TabUid, Sql, ReplaceAll) then
+  Host := CaptureHostState(False);
+  if (not Host.HasQueryTab) or (not PutSqlIntoQueryTab(Host.TabNumber, Sql, ReplaceAll)) then
     FPanel.SetStatus(_('Open a query tab first.'), True);
 end;
 
@@ -286,11 +300,11 @@ begin
   Refresh;
 end;
 
-procedure TAiController.QueryTabClosed(const TabUid: String);
+procedure TAiController.QueryTabClosed(TabNumber: Integer);
 begin
-  if FTracker.BusyForTab(TabUid) then
+  if FTracker.BusyForTabNumber(TabNumber) then
     Cancel;
-  FConversations.Drop(TabUid);
+  FConversations.DropTab(TabNumber);
 end;
 
 procedure TAiController.Shutdown;
@@ -300,7 +314,7 @@ begin
   if FShutDown then
     Exit;
   FShutDown := True;
-  Mailbox := FMailbox;
+  Mailbox := FLastMailbox;
   if FTracker.Busy then begin
     if Assigned(Mailbox) then
       Mailbox.Cancel;
@@ -309,7 +323,8 @@ begin
   // The worker keeps its own reference to the mailbox; wait so it does not outlive the app
   if Assigned(Mailbox) then
     Mailbox.WaitWorkerDone(SHUTDOWNWAITMS);
-  AppSettings.WriteInt(asAiPanelWidth, FPanel.Width);
+  FLastMailbox := nil;
+  AppSettings.WriteInt(asAiPanelWidth, FForm.ScaleFormToDesign(FPanel.Width));
 end;
 
 end.

@@ -7672,7 +7672,8 @@ begin
   // Check if a table list is stored in cache
   Result := False;
   for i:=0 to FDatabaseCache.Count-1 do begin
-    if FDatabaseCache[i].Database = db then begin
+    // AI Edition: an entry whose fetch failed is not loaded, so it does not count as cached
+    if (FDatabaseCache[i].Database = db) and FDatabaseCache[i].FObjectsLoaded then begin
       Result := True;
       break;
     end;

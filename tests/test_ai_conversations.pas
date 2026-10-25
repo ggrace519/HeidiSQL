@@ -14,6 +14,8 @@ type
     procedure FindDoesNotCreate;
     procedure DropRemovesOnlyThatTab;
     procedure ClearRemovesAll;
+    procedure KeySeparatesSessions;
+    procedure DropTabRemovesAllSessionsOfTab;
   end;
 
   TAiRequestTrackerTest = class(TTestCase)
@@ -24,6 +26,7 @@ type
     procedure StopDisownsAll;
     procedure ZeroNeverOwned;
     procedure BusyForTabOnlyMatchesItsTab;
+    procedure BusyForTabNumberIgnoresSession;
   end;
 
 implementation
@@ -184,6 +187,46 @@ begin
     AssertFalse(T.BusyForTab('tab2'));
     T.Stop;
     AssertFalse(T.BusyForTab('tab1'));
+  finally
+    T.Free;
+  end;
+end;
+
+procedure TAiConversationsTest.KeySeparatesSessions;
+begin
+  AssertTrue(ConversationKey(2, 'Servers\A') <> ConversationKey(2, 'Servers\B'));
+  AssertTrue(ConversationKey(2, 'Servers\A') <> ConversationKey(3, 'Servers\A'));
+  AssertEquals(12, TabNumberOfKey(ConversationKey(12, 'Servers\A')));
+  AssertEquals(-1, TabNumberOfKey('garbage'));
+end;
+
+procedure TAiConversationsTest.DropTabRemovesAllSessionsOfTab;
+var
+  List: TAiConversations;
+begin
+  List := TAiConversations.Create;
+  try
+    List.Get(ConversationKey(1, 'A'));
+    List.Get(ConversationKey(1, 'B'));
+    List.Get(ConversationKey(11, 'A'));
+    List.DropTab(1);
+    AssertNull(List.Find(ConversationKey(1, 'A')));
+    AssertNull(List.Find(ConversationKey(1, 'B')));
+    AssertNotNull('tab 11 is not tab 1', List.Find(ConversationKey(11, 'A')));
+  finally
+    List.Free;
+  end;
+end;
+
+procedure TAiRequestTrackerTest.BusyForTabNumberIgnoresSession;
+var
+  T: TAiRequestTracker;
+begin
+  T := TAiRequestTracker.Create;
+  try
+    T.Start(ConversationKey(3, 'A'), 1);
+    AssertTrue(T.BusyForTabNumber(3));
+    AssertFalse(T.BusyForTabNumber(13));
   finally
     T.Free;
   end;

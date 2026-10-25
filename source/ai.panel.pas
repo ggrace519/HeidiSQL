@@ -223,12 +223,26 @@ begin
   end;
 end;
 
+function SameBlocks(const A, B: TStringArray): Boolean;
+var
+  i: Integer;
+begin
+  Result := Length(A) = Length(B);
+  for i:=0 to High(A) do begin
+    if not Result then
+      Break;
+    Result := A[i] = B[i];
+  end;
+end;
+
 procedure TAiPanel.ShowConversation(Conversation: TAiConversation; Busy: Boolean);
 var
   Text, Caption: String;
   i: Integer;
   Last: TAiTurn;
   HasLast: Boolean;
+  NewBlocks: TStringArray;
+  KeepIndex: Integer;
 begin
   Text := '';
   HasLast := Assigned(Conversation) and (Conversation.Count > 0);
@@ -251,16 +265,18 @@ begin
     FMemoTranscript.SelStart := Length(Text);
   end;
 
-  if HasLast and (Last.State = tsDone) then begin
-    FBlocks := ExtractSqlBlocks(Last.Answer);
-    FContextSent := Last.ContextSent;
-  end else begin
-    FBlocks := nil;
-    if HasLast then
-      FContextSent := Last.ContextSent
-    else
-      FContextSent := '';
-  end;
+  NewBlocks := nil;
+  if HasLast and (Last.State = tsDone) then
+    NewBlocks := ExtractSqlBlocks(Last.Answer);
+  if HasLast then
+    FContextSent := Last.ContextSent
+  else
+    FContextSent := '';
+  // Refreshes happen on every tab or tree change; keep the block the user chose
+  KeepIndex := -1;
+  if SameBlocks(NewBlocks, FBlocks) then
+    KeepIndex := FComboBlocks.ItemIndex;
+  FBlocks := NewBlocks;
   FComboBlocks.Items.BeginUpdate;
   try
     FComboBlocks.Items.Clear;
@@ -272,7 +288,9 @@ begin
   finally
     FComboBlocks.Items.EndUpdate;
   end;
-  if Length(FBlocks) > 0 then
+  if (KeepIndex >= 0) and (KeepIndex <= High(FBlocks)) then
+    FComboBlocks.ItemIndex := KeepIndex
+  else if Length(FBlocks) > 0 then
     FComboBlocks.ItemIndex := 0;
   FComboBlocks.Visible := Length(FBlocks) > 1;
   FBtnInsert.Enabled := Length(FBlocks) > 0;
