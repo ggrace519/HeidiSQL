@@ -242,6 +242,8 @@ type
     asSequalSuggestWindowWidth, asSequalSuggestWindowHeight, asSequalSuggestPrompt, asSequalSuggestRecentPrompts,
     asReformatter, asReformatterNoDialog, asAlwaysGenerateFilter, asDisplayReverseForeignKeys,
     asGenerateDataNumRows, asGenerateDataNullAmount, asWebOnceAction, asDisplayLogPanel, asDisplayTreeFilters,
+    // AI Edition, per session
+    asAiEnabled, asAiProfileId, asAiContextNotes,
     asUnused);
   TAppSetting = record
     Name: String;
@@ -3975,6 +3977,10 @@ begin
   InitSetting(asDisplayObjectSizeColumn,          'DisplayObjectSizeColumn',               0, True);
   InitSetting(asDisplayLogPanel,                  'DisplayLogPanel',                       0, True);
   InitSetting(asDisplayTreeFilters,               'DisplayTreeFilters',                    0, True);
+  // AI Edition, per session: off by default, so nothing is sent unless enabled for a session
+  InitSetting(asAiEnabled,                        'AiEnabled',                             0, False, '', True);
+  InitSetting(asAiProfileId,                      'AiProfileId',                           0, False, '', True);
+  InitSetting(asAiContextNotes,                   'AiContextNotes',                        0, False, '', True);
   InitSetting(asActionShortcut1,                  'Shortcut1_%s',                          0);
   InitSetting(asActionShortcut2,                  'Shortcut2_%s',                          0);
   InitSetting(asHighlighterForeground,            'SQL Attr %s Foreground',                0);

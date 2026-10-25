@@ -7110,6 +7110,51 @@ msgstr "Keychain entry \"%s\", not checked yet."
 
 msgid "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
 msgstr "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
+
+msgid "Enable AI assistant for this session"
+msgstr "Enable AI assistant for this session"
+
+msgid "Provider:"
+msgstr "Provider:"
+
+msgid "Manage..."
+msgstr "Manage..."
+
+msgid "Edit AI providers in the preferences"
+msgstr "Edit AI providers in the preferences"
+
+msgid "Sent to the provider with each request: table and column names, types, keys, comments, approximate row counts, the notes below, and the SQL or question you ask about. No table data."
+msgstr "Sent to the provider with each request: table and column names, types, keys, comments, approximate row counts, the notes below, and the SQL or question you ask about. No table data."
+
+msgid "Shared data:"
+msgstr "Shared data:"
+
+msgid "What the model cannot see in the schema, e.g. \"Amounts are in cents. Soft-deleted rows have deleted_at set.\""
+msgstr "What the model cannot see in the schema, e.g. \"Amounts are in cents. Soft-deleted rows have deleted_at set.\""
+
+msgid "Context notes:"
+msgstr "Context notes:"
+
+msgid "Default provider (none defined yet)"
+msgstr "Default provider (none defined yet)"
+
+msgid "Default provider (%s)"
+msgstr "Default provider (%s)"
+
+msgid "The provider chosen for this session was removed. Choose another one."
+msgstr "The provider chosen for this session was removed. Choose another one."
+
+msgid "No AI provider is defined yet. Use \"Manage...\" to add one."
+msgstr "No AI provider is defined yet. Use \"Manage...\" to add one."
+
+msgid "The provider \"%s\" is incomplete. Use \"Manage...\" to fix it."
+msgstr "The provider \"%s\" is incomplete. Use \"Manage...\" to fix it."
+
+msgid "LLM Settings"
+msgstr "LLM Settings"
+
+msgid "(removed provider)"
+msgstr "(removed provider)"
 msgid "Variables in MS SQL only exist within the batch they are declared in. Your queries were sent one by one. Activate \"%s\" in the drop-down menu of the Run button to send them as one batch."
 msgstr "Variables in MS SQL only exist within the batch they are declared in. Your queries were sent one by one. Activate \"%s\" in the drop-down menu of the Run button to send them as one batch."
 
