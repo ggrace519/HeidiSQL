@@ -7328,3 +7328,108 @@ msgstr "Windows"
 
 msgid "Windows group"
 msgstr "Windows group"
+
+msgid "Insert the SQL at the cursor of the query editor. It is not executed."
+msgstr "Insert the SQL at the cursor of the query editor. It is not executed."
+
+msgid "Replace the whole query editor text with the SQL. It is not executed."
+msgstr "Replace the whole query editor text with the SQL. It is not executed."
+
+msgid "Context sent..."
+msgstr "Context sent..."
+
+msgid "Show exactly what was sent to the AI provider with the last question"
+msgstr "Show exactly what was sent to the AI provider with the last question"
+
+msgid "The answer contains several SQL blocks. Choose the one to insert or copy."
+msgstr "The answer contains several SQL blocks. Choose the one to insert or copy."
+
+msgid "Describe the query you need, e.g. \"Customers without orders in 2024\""
+msgstr "Describe the query you need, e.g. \"Customers without orders in 2024\""
+
+msgid "Send the question to the AI provider (Ctrl+Enter)"
+msgstr "Send the question to the AI provider (Ctrl+Enter)"
+
+msgid "Start a new conversation in this query tab"
+msgstr "Start a new conversation in this query tab"
+
+msgid "Thinking..."
+msgstr "Thinking..."
+
+msgid "Waiting for the answer..."
+msgstr "Waiting for the answer..."
+
+msgid "The answer was empty."
+msgstr "The answer was empty."
+
+msgid "Error: %s"
+msgstr "Error: %s"
+
+msgid "Block %d: %s"
+msgstr "Block %d: %s"
+
+msgid "Changes the database structure (DDL). Review it before running."
+msgstr "Changes the database structure (DDL). Review it before running."
+
+msgid "Changes data (DML). Review it before running."
+msgstr "Changes data (DML). Review it before running."
+
+msgid "Context sent to the AI provider"
+msgstr "Context sent to the AI provider"
+
+msgid "Open a query tab to use the AI assistant."
+msgstr "Open a query tab to use the AI assistant."
+
+msgid "Connect to a database to use the AI assistant."
+msgstr "Connect to a database to use the AI assistant."
+
+msgid "Another query tab is waiting for an answer."
+msgstr "Another query tab is waiting for an answer."
+
+msgid "Select a database in the tree first. Its tables and columns are sent with the question."
+msgstr "Select a database in the tree first. Its tables and columns are sent with the question."
+
+msgid "Session \"%s\", database \"%s\""
+msgstr "Session \"%s\", database \"%s\""
+
+msgid "A query is running, so only the schema already loaded was sent."
+msgstr "A query is running, so only the schema already loaded was sent."
+
+msgid "Asking %s (%s)..."
+msgstr "Asking %s (%s)..."
+
+msgid "Open a query tab first."
+msgstr "Open a query tab first."
+
+msgid "Generate SQL with AI..."
+msgstr "Generate SQL with AI..."
+
+msgid "Describe a query in your own words and let the AI assistant write the SQL"
+msgstr "Describe a query in your own words and let the AI assistant write the SQL"
+
+msgid "AI assistant panel"
+msgstr "AI assistant panel"
+
+msgid "Show or hide the AI assistant panel"
+msgstr "Show or hide the AI assistant panel"
+
+msgid "No AI provider is set up yet. Add one in Preferences, tab \"AI providers\"."
+msgstr "No AI provider is set up yet. Add one in Preferences, tab \"AI providers\"."
+
+msgid "The AI provider of this session was removed. Choose another one in the session manager, tab \"LLM Settings\"."
+msgstr "The AI provider of this session was removed. Choose another one in the session manager, tab \"LLM Settings\"."
+
+msgid "The AI provider \"%s\" is not complete. Fix it in Preferences, tab \"AI providers\":"
+msgstr "The AI provider \"%s\" is not complete. Fix it in Preferences, tab \"AI providers\":"
+
+msgid "Connect to a database first."
+msgstr "Connect to a database first."
+
+msgid "Save the session to use the AI assistant with it."
+msgstr "Save the session to use the AI assistant with it."
+
+msgid "The AI assistant is off for session \"%s\". Turn it on in the session manager, tab \"LLM Settings\"."
+msgstr "The AI assistant is off for session \"%s\". Turn it on in the session manager, tab \"LLM Settings\"."
+
+msgid "Type a question first."
+msgstr "Type a question first."

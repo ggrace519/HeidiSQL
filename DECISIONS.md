@@ -94,3 +94,21 @@ service. `ai-v` tags keep fork releases apart from upstream `v12.x` tags mirrore
   local servers with self-signed certificates.
 - **Redirects are not followed:** the Authorization header would go to another host. The error
   names the redirect target so the user can correct the base URL.
+
+## ADR-008: Assistant panel, request lifecycle and database requirement
+**Date:** 2026-10-25 · **Status:** accepted
+
+- **UI in code, not .lfm:** the panel is built at runtime and docked on the right of the main
+  window, like the Preferences and Session Manager tabs. main.lfm stays untouched for upstream
+  merges. The plan's `ai.panel.lfm` was dropped for this reason.
+- **One request in flight** for the whole window, tracked by a request id and the query tab's
+  Uid. A 50 ms timer drains the mailbox; text for a cancelled, replaced or closed tab's request is
+  dropped. Shutdown cancels and waits up to 2 s for the worker before tabs and settings go away.
+- **main.pas coupling** is limited to `ai.hostcontext` (reads the active tab, connection and
+  database, puts SQL into an editor) and five short hooks: init before the shortcut snapshot, tab
+  change, tree focus change, tab close and shutdown.
+- **A selected database is required,** as for Create table: without it no schema is sent and
+  the model guesses table names. Picking the only user database automatically was tried and
+  rejected, as it hides which schema is sent.
+- **Cache-only schema while a query runs:** `TDBConnection` is not thread-safe, so when a query
+  thread holds the connection only already cached table lists and columns are used.
