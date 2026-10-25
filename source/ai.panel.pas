@@ -30,6 +30,7 @@ type
     FBlocks: TStringArray;
     FContextSent: String;
     FTranscriptText: String;
+    FCanSend: Boolean;
     FOnSend: TAiSendEvent;
     FOnCancel: TNotifyEvent;
     FOnClear: TNotifyEvent;
@@ -50,6 +51,8 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     procedure SetStatus(const Text: String; IsProblem: Boolean);
+    // False disables sending, e.g. while no database is selected
+    property CanSend: Boolean read FCanSend write FCanSend;
     // Shows a conversation; nil clears the view. Busy disables sending and enables Cancel.
     procedure ShowConversation(Conversation: TAiConversation; Busy: Boolean);
     procedure FocusPrompt;
@@ -276,7 +279,7 @@ begin
   FBtnReplace.Enabled := FBtnInsert.Enabled;
   FBtnCopy.Enabled := FBtnInsert.Enabled;
   FBtnContext.Enabled := FContextSent <> '';
-  FBtnSend.Enabled := not Busy;
+  FBtnSend.Enabled := FCanSend and (not Busy);
   FBtnCancel.Enabled := Busy;
   FBtnClear.Enabled := (not Busy) and HasLast;
   UpdateBadge;

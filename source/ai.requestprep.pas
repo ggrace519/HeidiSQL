@@ -71,6 +71,9 @@ begin
     Exit(_('Open a query tab first.'));
   if Host.Connection = nil then
     Exit(_('Connect to a database first.'));
+  // Like creating a table, generating SQL needs a database: its schema is what the model works with
+  if Host.Database = '' then
+    Exit(_('Select a database in the tree first. Its tables and columns are sent with the question.'));
   if Host.SessionPath = '' then
     Exit(_('Save the session to use the AI assistant with it.'));
   Settings := LoadAiSessionSettings(Host.SessionPath);

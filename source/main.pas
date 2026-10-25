@@ -10213,6 +10213,9 @@ begin
   DBTree.InvalidateColumn(0);
   FixQueryTabCloseButtons;
   SetWindowCaption;
+  // AI Edition: the assistant needs a selected database
+  if Assigned(AiController) then
+    AiController.Refresh;
 end;
 
 

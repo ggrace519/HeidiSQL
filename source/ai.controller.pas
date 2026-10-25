@@ -127,12 +127,15 @@ begin
     Exit;
   Host := CaptureHostState;
   FShownTabUid := Host.TabUid;
+  FPanel.CanSend := Host.HasQueryTab and Assigned(Host.Connection) and (Host.Database <> '');
   if not Host.HasQueryTab then
     FPanel.SetStatus(_('Open a query tab to use the AI assistant.'), False)
   else if Host.Connection = nil then
     FPanel.SetStatus(_('Connect to a database to use the AI assistant.'), False)
   else if FTracker.Busy and (not FTracker.BusyForTab(Host.TabUid)) then
     FPanel.SetStatus(_('Another query tab is waiting for an answer.'), False)
+  else if Host.Database = '' then
+    FPanel.SetStatus(_('Select a database in the tree first. Its tables and columns are sent with the question.'), True)
   else
     FPanel.SetStatus(f_('Session "%s", database "%s"', [Host.SessionName, Host.Database]), False);
   FPanel.ShowConversation(FConversations.Find(Host.TabUid), FTracker.Busy);
