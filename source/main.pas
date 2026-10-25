@@ -474,10 +474,10 @@ type
     tbtnDataColumns: TSpeedButton;
     tbtnDataFilter: TSpeedButton;
     pnlFilter: TPanel;
-    btnFilterApply: TButton;
+    btnFilterApply: TBitBtn;
     lblTableFilter: TLabel;
     editFilterSearch: TEdit;
-    btnFilterClear: TButton;
+    btnFilterClear: TBitBtn;
     popupFilter: TPopupMenu;
     menuFilterCopy: TMenuItem;
     menuFilterPaste: TMenuItem;
@@ -845,8 +845,8 @@ type
       var Handled: Boolean);
     procedure DataGridContextPopup(Sender: TObject; MousePos: TPoint;
       var Handled: Boolean);
-    procedure DBtreeMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer
-      );
+    procedure AnyGridMouseMove(Sender: TObject; Shift: TShiftState; X,
+      Y: Integer);
     procedure FormActivate(Sender: TObject);
     procedure ImageListGetWidthForPPI(Sender: TCustomImageList;
       AImageWidth, APPI: Integer; var AResultWidth: Integer);
@@ -1479,7 +1479,7 @@ implementation
 
 uses
   FileInfo, winpeimagereader, elfreader, machoreader, About, data_sorting, column_selection, loaddata, editvar,
-  copytable, csv_detector, exportgrid, usermanager, rolemanagerpg, reformatter, connections, sqlhelp, updatecheck,
+  copytable, csv_detector, exportgrid, usermanager, rolemanagerpg, rolemanagermssql, reformatter, connections, sqlhelp, updatecheck,
   insertfiles, texteditor, preferences, table_editor, view, routine_editor, trigger_editor, event_editor, grideditlinks,
   crashdialog, selectdbobject;
 
@@ -1834,7 +1834,7 @@ begin
   AppSettings.WriteInt(asQuerymemoheight, ScaleFormToDesign(pnlQueryMemo.Height));
   AppSettings.WriteInt(asQueryhelperswidth, ScaleFormToDesign(pnlQueryHelpers.Width));
   AppSettings.WriteInt(asCompletionProposalWidth, SynCompletionProposal.TheForm.ScaleFormToDesign(SynCompletionProposal.TheForm.Width));
-  AppSettings.WriteInt(asCompletionProposalNbLinesInWindow, SynCompletionProposal.TheForm.ScaleFormToDesign(SynCompletionProposal.LinesInWindow));
+  AppSettings.WriteInt(asCompletionProposalNbLinesInWindow, SynCompletionProposal.LinesInWindow);
   AppSettings.WriteInt(asDbtreewidth, ScaleFormToDesign(pnlLeft.width));
   AppSettings.WriteBool(asGroupTreeObjects, actGroupObjects.Checked);
   AppSettings.WriteBool(asTreeShowColumns, actTreeShowColumns.Checked);
@@ -1865,6 +1865,25 @@ begin
   LogToFile := False;
   AppSettings.Free;
 end;
+
+{$IFDEF DARWIN}
+function CtrlToCmdShortCut(ShortCut: TShortCut): TShortCut;
+var
+  Key: Word;
+  Shift: TShiftState;
+begin
+  // On Cocoa, ssCtrl is the physical Control key, while the Command key arrives as ssMeta.
+  // Move Ctrl+letter/digit shortcuts to Cmd, as macOS users expect Cmd+C/V/X/A/Z etc.
+  // Q, H, M and W are left alone, as Cmd+Q/H/M/W are reserved for app and window handling.
+  Result := ShortCut;
+  ShortCutToKey(ShortCut, Key, Shift);
+  if (ssCtrl in Shift)
+    and (not (ssMeta in Shift))
+    and (Key in [VK_0..VK_9, VK_A..VK_Z])
+    and (not (Key in [VK_Q, VK_H, VK_M, VK_W])) then
+    Result := KeyToShortCut(Key, Shift - [ssCtrl] + [ssMeta]);
+end;
+{$ENDIF}
 
 procedure TMainForm.FormCreate(Sender: TObject);
 var
@@ -2097,6 +2116,22 @@ begin
     actExitApplication.Caption := 'E&xit';
     actExitApplication.ShortCut := KeyToShortCut(VK_F4, [ssAlt]);
   {$ENDIF}
+  {$IFDEF DARWIN}
+  // Default shortcuts use Cmd instead of Ctrl, before customized ones are applied
+  for i:=0 to ActionList1.ActionCount-1 do begin
+    Action := TAction(ActionList1.Actions[i]);
+    Action.ShortCut := CtrlToCmdShortCut(Action.ShortCut);
+  end;
+  for i:=0 to SynMemoQuery.Keystrokes.Count-1 do begin
+    try
+      SynMemoQuery.Keystrokes[i].ShortCut := CtrlToCmdShortCut(SynMemoQuery.Keystrokes[i].ShortCut);
+      SynMemoQuery.Keystrokes[i].ShortCut2 := CtrlToCmdShortCut(SynMemoQuery.Keystrokes[i].ShortCut2);
+    except
+      on E:ESynKeyError do
+        LogSQL(E.Message, lcDebug);
+    end;
+  end;
+  {$ENDIF}
   // Customized keyboard shortcuts
   for i:=0 to ActionList1.ActionCount-1 do begin
     Action := TAction(ActionList1.Actions[i]);
@@ -2114,7 +2149,14 @@ begin
   end;
 
   // Completion proposal window
-  SynCompletionProposal.TheForm.Width := Min(Max(AppSettings.ReadInt(asCompletionProposalWidth), 50), 350);
+  // The LCL scales the proposal form again when it is shown on a monitor with
+  // a different DPI, which inflates its height on every show. Keep Scaled off
+  // and handle DPI awareness ourselves, as the Delphi trunk does.
+  SynCompletionProposal.TheForm.Scaled := False;
+  // Width is stored in design units, so scale it back to the form's current DPI
+  SynCompletionProposal.TheForm.Width := SynCompletionProposal.TheForm.ScaleDesignToForm(
+    Min(Max(AppSettings.ReadInt(asCompletionProposalWidth), 50), 350)
+  );
   SynCompletionProposal.TheForm.BackgroundColor := clBtnFace;
   SynCompletionProposal.TheForm.OnKeyDown := SynCompletionProposalFormKeyDown;
   SynCompletionProposal.LinesInWindow := Min(AppSettings.ReadInt(asCompletionProposalNbLinesInWindow), 10);
@@ -2472,7 +2514,13 @@ begin
       if not BackupFilename.IsEmpty then begin
         if FileExists(BackupFilename) then begin
           Tab := GetOrCreateEmptyQueryTab(False);
-          Tab.Uid := Section;
+          if Section.IsEmpty then begin
+            // Fix broken tab section with empty name, see issue #2637
+            Tab.Uid := TQueryTab.GenerateUid;
+            TabsIni.EraseSection(Section);
+          end else begin
+            Tab.Uid := Section;
+          end;
           Tab.LoadContents(BackupFilename, True, Encoding);
           Tab.MemoFilename := Filename;
           Tab.Memo.Modified := True;
@@ -2496,7 +2544,13 @@ begin
       end else if not Filename.IsEmpty then begin
         if FileExists(Filename) then begin
           Tab := GetOrCreateEmptyQueryTab(False);
-          Tab.Uid := Section;
+          if Section.IsEmpty then begin
+            // Fix broken tab section with empty name, see issue #2637
+            Tab.Uid := TQueryTab.GenerateUid;
+            TabsIni.EraseSection(Section);
+          end else begin
+            Tab.Uid := Section;
+          end;
           Tab.LoadContents(Filename, True, Encoding);
           Tab.MemoFilename := Filename;
           if not TabCaption.IsEmpty then
@@ -2852,6 +2906,7 @@ begin
   case ActiveConnection.Parameters.NetTypeGroup of
     ngMySQL: Dialog := TUserManagerForm.Create(Self);
     ngPgSQL: Dialog := TRoleManagerPgForm.Create(Self);
+    ngMSSQL: Dialog := TRoleManagerMssqlForm.Create(Self);
     else ErrorDialog(ActiveConnection.Parameters.NetTypeName(False) + ' not supported for managing users');
   end;
   if Dialog = nil then
@@ -3397,7 +3452,7 @@ end;
 procedure TMainForm.FinishedQueryExecution(Thread: TQueryThread);
 var
   Tab: TQueryTab;
-  MetaInfo, ErroneousSQL, RegName: String;
+  MetaInfo, ErroneousSQL, RegName, ErrorHint: String;
   ProfileAllTime: Extended;
   ProfileNode: PVirtualNode;
   History: TQueryHistory;
@@ -3451,7 +3506,16 @@ begin
   if not Thread.ErrorMessage.IsEmpty then begin
     SetProgressState(pbsError);
     GoToErrorPos(Thread.ErrorMessage);
-    ErrorDialog(Thread.ErrorMessage);
+    ErrorHint := '';
+    // MS SQL variables only live within one batch, unlike in SSMS which only splits on GO
+    if Thread.Connection.Parameters.IsAnyMSSQL
+      and (not Thread.BatchInOneGo)
+      and (Thread.Batch.Count > 1)
+      and ExecRegExprI('Must declare the (table|scalar) variable', Thread.ErrorMessage) then begin
+      ErrorHint := sLineBreak + sLineBreak +
+        f_('Variables in MS SQL only exist within the batch they are declared in. Your queries were sent one by one. Activate "%s" in the drop-down menu of the Run button to send them as one batch.', [actBatchInOneGo.Caption]);
+    end;
+    ErrorDialog(Thread.ErrorMessage + ErrorHint);
   end;
 
   // Gather meta info for logging
@@ -4623,14 +4687,19 @@ begin
   Handled := Tree.Header.InHeader(MousePos);
 end;
 
-procedure TMainForm.DBtreeMouseMove(Sender: TObject; Shift: TShiftState; X,
+procedure TMainForm.AnyGridMouseMove(Sender: TObject; Shift: TShiftState; X,
   Y: Integer);
+var
+  VT: TLazVirtualStringTree;
 begin
   // Required step with DragMode=dmManual
   // We use dmManual to fix a non appearing context menu in conjunction with DragType=dtVCL
   // This reserves left-clicks for dragging, leaving right-clicks for context menu
-  if (ssLeft in Shift) and (not DBtree.Dragging) then
-    DBtree.BeginDrag(False);
+  if not (ssLeft in Shift) then
+    Exit;
+  VT := Sender as TLazVirtualStringTree;
+  if (VT.DragMode = dmManual) and (VT.DragType = dtVCL) and (not VT.Dragging) then
+    VT.BeginDrag(False);
 end;
 
 procedure TMainForm.FormActivate(Sender: TObject);
@@ -8181,7 +8250,7 @@ var
   Results: TDBQuery;
   i: Integer;
   Col, Value, FocusedColumnName: String;
-  CellFocused, InDataGrid, HasNullValue, HasNotNullValue: Boolean;
+  CellFocused, InDataGrid, HasNullValue, HasNotNullValue, IsBinary: Boolean;
   RowNumber: PInt64;
   Node: PVirtualNode;
   OldDataLocalNumberFormat: Boolean;
@@ -8233,6 +8302,7 @@ begin
   Node := Grid.GetFirstSelected;
   HasNullValue := False;
   HasNotNullValue := False;
+  IsBinary := Datatype.Category in [dtcBinary, dtcSpatial];
   OldDataLocalNumberFormat := DataLocalNumberFormat;
   DataLocalNumberFormat := False;
   IncludedValues := TStringList.Create; // Used to skip duplicates
@@ -8296,9 +8366,9 @@ begin
   end;
   actQuickFilterFocused1.Visible := HasNotNullValue or HasNullValue;
   actQuickFilterFocused2.Visible := HasNotNullValue or HasNullValue;
-  actQuickFilterFocused3.Visible := HasNotNullValue;
-  actQuickFilterFocused4.Visible := HasNotNullValue;
-  actQuickFilterFocused5.Visible := HasNotNullValue;
+  actQuickFilterFocused3.Visible := HasNotNullValue and (not IsBinary); // LIKE is broken with quoted hex, but anyway used rarely
+  actQuickFilterFocused4.Visible := HasNotNullValue and (not IsBinary); // dito
+  actQuickFilterFocused5.Visible := HasNotNullValue and (not IsBinary); // dito
   actQuickFilterFocused6.Visible := HasNotNullValue;
   actQuickFilterFocused7.Visible := HasNotNullValue;
   IncludedValues.Free;
@@ -13029,7 +13099,9 @@ begin
   end;
   AppSettings.DeleteValue(asCompletionProposalWidth);
   AppSettings.DeleteValue(asCompletionProposalNbLinesInWindow);
-  SynCompletionProposal.TheForm.Width := Max(AppSettings.ReadInt(asCompletionProposalWidth), 50);
+  SynCompletionProposal.TheForm.Width := SynCompletionProposal.TheForm.ScaleDesignToForm(
+    Max(AppSettings.ReadInt(asCompletionProposalWidth), 50)
+  );
   SynCompletionProposal.LinesInWindow := AppSettings.ReadInt(asCompletionProposalNbLinesInWindow);
 end;
 

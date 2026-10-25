@@ -33,43 +33,98 @@ jobs:
         steps:
         - name: Checkout source code
           uses: actions/checkout@v6
+          with:
+            fetch-depth: 0
 
+        # The installer is downloaded to ~/lazarus-installers, served by actions/cache.
+        # Bump the cache key when changing the installer URL in this step.
+        - name: Cache Lazarus 4.8 installer (Windows)
+          if: ${{ matrix.operating-system == 'windows-latest' }}
+          uses: actions/cache@v6
+          with:
+            path: ~/lazarus-installers
+            key: lazarus48-installers-win64-fpc-3.2.2
         - name: Install Lazarus 4.8 (Windows)
           if: ${{ matrix.operating-system == 'windows-latest' }}
           shell: pwsh
           run: |
-            $installer = "${env:RUNNER_TEMP}\lazarus-4.8.exe"
-            curl.exe -L --retry 3 -o $installer "https://sourceforge.net/projects/lazarus/files/Lazarus%20Windows%2064%20bits/Lazarus%204.8/lazarus-4.8-fpc-3.2.2-win64.exe/download"
+            $installer = "$env:USERPROFILE\lazarus-installers\lazarus-4.8.exe"
+            New-Item -ItemType Directory -Force -Path (Split-Path $installer) | Out-Null
+            if (-not (Test-Path $installer) -or (Get-Item $installer).Length -lt 100MB) {
+              curl.exe -L --retry 3 -o $installer "https://sourceforge.net/projects/lazarus/files/Lazarus%20Windows%2064%20bits/Lazarus%204.8/lazarus-4.8-fpc-3.2.2-win64.exe/download"
+            }
             if ((Get-Item $installer).Length -lt 100MB) { throw "Lazarus installer download failed: file too small" }
             $lazarusDir = "${env:RUNNER_TEMP}\lazarus"
             Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/SP-", "/SUPPRESSMSGBOXES", "/DIR=$lazarusDir" -Wait -NoNewWindow
             Add-Content -Path $env:GITHUB_PATH -Value $lazarusDir
             Add-Content -Path $env:GITHUB_PATH -Value "$lazarusDir\fpc\3.2.2\bin\x86_64-win64"
 
+        # The installers are downloaded to ~/lazarus-installers, served by actions/cache.
+        # Bump the cache key when changing the installer URLs in this step.
+        - name: Cache Lazarus 4.8 installers (macOS)
+          if: ${{ matrix.operating-system == 'macos-15' }}
+          uses: actions/cache@v6
+          with:
+            path: ~/lazarus-installers
+            key: lazarus48-installers-macos-fpc-3.2.4rc1a
         - name: Install Lazarus 4.8 (macOS)
           if: ${{ matrix.operating-system == 'macos-15' }}
           run: |
-            wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20macOS%20x86-64/Lazarus%204.8/fpc-3.2.4rc1a.intelarm64-macosx.dmg" -O "$RUNNER_TEMP/fpc.dmg"
-            wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20macOS%20aarch64/Lazarus%204.8/lazarus-darwin-aarch64-4.8.zip" -O "$RUNNER_TEMP/lazarus.zip"
-            sudo hdiutil attach "$RUNNER_TEMP/fpc.dmg"
+            INSTALLER_CACHE="$HOME/lazarus-installers"
+            mkdir -p "$INSTALLER_CACHE"
+            if [ ! -s "$INSTALLER_CACHE/fpc.dmg" ]; then
+              wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20macOS%20x86-64/Lazarus%204.8/fpc-3.2.4rc1a.intelarm64-macosx.dmg" -O "$INSTALLER_CACHE/fpc.dmg"
+            fi
+            if [ ! -s "$INSTALLER_CACHE/lazarus.zip" ]; then
+              wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20macOS%20aarch64/Lazarus%204.8/lazarus-darwin-aarch64-4.8.zip" -O "$INSTALLER_CACHE/lazarus.zip"
+            fi
+            sudo hdiutil attach "$INSTALLER_CACHE/fpc.dmg"
             FPC_VOL=$(ls -d /Volumes/fpc* | head -1)
             FPC_PKG=$(find "$FPC_VOL" -maxdepth 1 -name "*.pkg" | head -1)
             sudo installer -package "$FPC_PKG" -target /
             sudo hdiutil detach "$FPC_VOL"
-            xattr -cr "$RUNNER_TEMP/lazarus.zip"
-            unzip -q "$RUNNER_TEMP/lazarus.zip" -d "$RUNNER_TEMP"
+            xattr -cr "$INSTALLER_CACHE/lazarus.zip"
+            unzip -q "$INSTALLER_CACHE/lazarus.zip" -d "$RUNNER_TEMP"
             sed -i '' 's|"/Developer/lazarus/"|"'$RUNNER_TEMP'/lazarus/"|g' "$RUNNER_TEMP/lazarus/config/environmentoptions.xml" 2>/dev/null || true
             sudo ln -sf "$RUNNER_TEMP/lazarus/lazbuild" /usr/local/bin/lazbuild
             echo "$RUNNER_TEMP/lazarus" >> $GITHUB_PATH
 
+        - name: Patch Lazarus 4.8 (macOS)
+          if: ${{ matrix.operating-system == 'macos-15' }}
+          run: |
+            LAZARUS_DIR="$RUNNER_TEMP/lazarus"
+            test -f "$LAZARUS_DIR/lcl/include/lclintf.inc"
+            for p in "$GITHUB_WORKSPACE"/extra/lazarus-patches/4.8/*.patch; do
+              patch -d "$LAZARUS_DIR" -p1 --dry-run < "$p"
+              patch -d "$LAZARUS_DIR" -p1 < "$p"
+            done
+            grep -Fq "LCLIntf.SetCanvasScaleFactor(NodeBitmap.Canvas.Handle, ScaleFactor);" "$LAZARUS_DIR/components/virtualtreeview/laz.virtualtrees.pas"
+            grep -Fq "CGContextScaleCTM(ctx.CGContext, AScaleRatio, AScaleRatio);" "$LAZARUS_DIR/lcl/interfaces/cocoa/cocoalclintf.inc"
+
+        # The installers are downloaded to ~/lazarus-installers, served by actions/cache.
+        # Bump the cache key when changing the installer URLs in the steps of this job.
+        - name: Cache Lazarus 4.8 installers (Ubuntu)
+          if: ${{ matrix.operating-system == 'ubuntu-latest' }}
+          uses: actions/cache@v6
+          with:
+            path: ~/lazarus-installers
+            key: lazarus48-installers-linux-amd64-fpc-3.2.2-qt6pas-6.2.10
         - name: Install Lazarus 4.8 (Ubuntu)
           if: ${{ matrix.operating-system == 'ubuntu-latest' }}
           run: |
-            wget -q https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%204.8/fpc-laz_3.2.2-210709_amd64.deb -O /tmp/fpc-laz.deb
-            wget -q https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%204.8/fpc-src_3.2.2-210709_amd64.deb -O /tmp/fpc-src.deb
-            wget -q https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%204.8/lazarus-project_4.8.0-0_amd64.deb -O /tmp/lazarus.deb
+            INSTALLER_CACHE="$HOME/lazarus-installers"
+            mkdir -p "$INSTALLER_CACHE"
+            if [ ! -s "$INSTALLER_CACHE/fpc-laz_3.2.2-210709_amd64.deb" ]; then
+              wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%204.8/fpc-laz_3.2.2-210709_amd64.deb" -O "$INSTALLER_CACHE/fpc-laz_3.2.2-210709_amd64.deb"
+            fi
+            if [ ! -s "$INSTALLER_CACHE/fpc-src_3.2.2-210709_amd64.deb" ]; then
+              wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%204.8/fpc-src_3.2.2-210709_amd64.deb" -O "$INSTALLER_CACHE/fpc-src_3.2.2-210709_amd64.deb"
+            fi
+            if [ ! -s "$INSTALLER_CACHE/lazarus-project_4.8.0-0_amd64.deb" ]; then
+              wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%204.8/lazarus-project_4.8.0-0_amd64.deb" -O "$INSTALLER_CACHE/lazarus-project_4.8.0-0_amd64.deb"
+            fi
             sudo apt-get update
-            sudo apt-get install -y /tmp/fpc-laz.deb /tmp/fpc-src.deb /tmp/lazarus.deb
+            sudo apt-get install -y "$INSTALLER_CACHE/fpc-laz_3.2.2-210709_amd64.deb" "$INSTALLER_CACHE/fpc-src_3.2.2-210709_amd64.deb" "$INSTALLER_CACHE/lazarus-project_4.8.0-0_amd64.deb"
             echo "/usr/lib/lazarus/4.8" >> $GITHUB_PATH
 
         - name: Build HeidiSQL (Windows)
@@ -108,6 +163,7 @@ jobs:
             exit 0
 
         - name: Upload binaries Windows
+          id: upload-unsigned-win64
           if: ${{ matrix.operating-system == 'windows-latest' && matrix.lazarus-versions == 'stable' }}
           uses: actions/upload-artifact@v6
           with:
@@ -118,6 +174,50 @@ jobs:
           timeout-minutes: 10
           if: ${{ matrix.operating-system == 'ubuntu-latest' }}
           run: make test
+        - name: Sign heidisql.exe via SignPath
+          if: ${{ matrix.operating-system == 'windows-latest' && matrix.lazarus-versions == 'stable' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+          uses: signpath/github-action-submit-signing-request@v3
+          with:
+            api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+            organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+            project-slug: HeidiSQL
+            # TODO: switch back to github.ref_type == 'tag' && 'release-signing' || 'test-signing'
+            # once the SignPath release certificate is available.
+            signing-policy-slug: test-signing
+            github-artifact-id: ${{ steps.upload-unsigned-win64.outputs.artifact-id }}
+            wait-for-completion: true
+            output-artifact-directory: signed
+
+        - name: Upload signed Windows binary
+          if: ${{ matrix.operating-system == 'windows-latest' && matrix.lazarus-versions == 'stable' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+          uses: actions/upload-artifact@v6
+          with:
+            name: ${{ matrix.operating-system }}-WIN64-signed
+            path: signed/heidisql.exe
+
+        - name: Install Inno Setup
+          if: ${{ matrix.operating-system == 'windows-latest' }}
+          shell: pwsh
+          run: choco install innosetup --no-progress -y
+
+        - name: Build Windows installer
+          if: ${{ matrix.operating-system == 'windows-latest' }}
+          run: |
+            # Prefer the signed binary, fall back to the unsigned one (e.g. fork PRs without SignPath)
+            mkdir -p out
+            if [ -f signed/heidisql.exe ]; then
+              cp signed/heidisql.exe out/heidisql.exe
+            else
+              cp out/win64/heidisql.exe out/heidisql.exe
+            fi
+            "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" create-windows-installer.iss
+
+        - name: Upload Windows installer
+          if: ${{ matrix.operating-system == 'windows-latest' }}
+          uses: actions/upload-artifact@v6
+          with:
+            name: windows-installer
+            path: out/HeidiSQL_*_Setup.exe
 
         - name: Build HeidiSQL (Ubuntu GTK)
           if: ${{ matrix.operating-system == 'ubuntu-latest' }}
@@ -137,12 +237,17 @@ jobs:
           run: |
             sudo apt update
             sudo apt install -y libqt5pas-dev wget qt6-base-dev
+            INSTALLER_CACHE="$HOME/lazarus-installers"
+            mkdir -p "$INSTALLER_CACHE"
             LIBQT6PAS_VERSION="6.2.10"
-            wget -q "https://github.com/davidbannon/libqt6pas/releases/download/v${LIBQT6PAS_VERSION}/libqt6pas6_${LIBQT6PAS_VERSION}-1_amd64.deb" -O /tmp/libqt6pas6.deb
-            sudo dpkg -i /tmp/libqt6pas6.deb || sudo apt-get install -f -y
-            wget -q "https://github.com/davidbannon/libqt6pas/releases/download/v${LIBQT6PAS_VERSION}/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_amd64.deb" -O /tmp/libqt6pas6-dev.deb
-            sudo dpkg -i /tmp/libqt6pas6-dev.deb || sudo apt-get install -f -y
-            rm -f /tmp/libqt6pas6.deb /tmp/libqt6pas6-dev.deb
+            if [ ! -s "$INSTALLER_CACHE/libqt6pas6_${LIBQT6PAS_VERSION}-1_amd64.deb" ]; then
+              wget -q "https://github.com/davidbannon/libqt6pas/releases/download/v${LIBQT6PAS_VERSION}/libqt6pas6_${LIBQT6PAS_VERSION}-1_amd64.deb" -O "$INSTALLER_CACHE/libqt6pas6_${LIBQT6PAS_VERSION}-1_amd64.deb"
+            fi
+            sudo dpkg -i "$INSTALLER_CACHE/libqt6pas6_${LIBQT6PAS_VERSION}-1_amd64.deb" || sudo apt-get install -f -y
+            if [ ! -s "$INSTALLER_CACHE/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_amd64.deb" ]; then
+              wget -q "https://github.com/davidbannon/libqt6pas/releases/download/v${LIBQT6PAS_VERSION}/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_amd64.deb" -O "$INSTALLER_CACHE/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_amd64.deb"
+            fi
+            sudo dpkg -i "$INSTALLER_CACHE/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_amd64.deb" || sudo apt-get install -f -y
 
         - name: Build HeidiSQL (Ubuntu QT5)
           if: ${{ matrix.operating-system == 'ubuntu-latest' }}
@@ -182,6 +287,11 @@ jobs:
             name: ${{ matrix.operating-system }}-QT6
             path: out/qt6/heidisql
 
+        - name: Install FreeTDS (macOS)
+          if: ${{ matrix.operating-system == 'macos-15' }}
+          run: |
+            brew install freetds
+
         - name: Build HeidiSQL (macOS)
           if: ${{ matrix.operating-system == 'macos-15' }}
           run: make build-macos
@@ -202,21 +312,47 @@ jobs:
       steps:
       - name: Checkout source code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
+      # The installers are downloaded to ~/lazarus-installers, served by actions/cache.
+      # Bump the cache key when changing the installer URLs in this step.
+      - name: Cache Lazarus 4.8 installers (macOS)
+        uses: actions/cache@v6
+        with:
+          path: ~/lazarus-installers
+          key: lazarus48-installers-macos-fpc-3.2.4rc1a
       - name: Install Lazarus 4.8 (macOS)
         run: |
-          wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20macOS%20x86-64/Lazarus%204.8/fpc-3.2.4rc1a.intelarm64-macosx.dmg" -O "$RUNNER_TEMP/fpc.dmg"
-          wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20macOS%20aarch64/Lazarus%204.8/lazarus-darwin-aarch64-4.8.zip" -O "$RUNNER_TEMP/lazarus.zip"
-          sudo hdiutil attach "$RUNNER_TEMP/fpc.dmg"
+          INSTALLER_CACHE="$HOME/lazarus-installers"
+          mkdir -p "$INSTALLER_CACHE"
+          if [ ! -s "$INSTALLER_CACHE/fpc.dmg" ]; then
+            wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20macOS%20x86-64/Lazarus%204.8/fpc-3.2.4rc1a.intelarm64-macosx.dmg" -O "$INSTALLER_CACHE/fpc.dmg"
+          fi
+          if [ ! -s "$INSTALLER_CACHE/lazarus.zip" ]; then
+            wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20macOS%20aarch64/Lazarus%204.8/lazarus-darwin-aarch64-4.8.zip" -O "$INSTALLER_CACHE/lazarus.zip"
+          fi
+          sudo hdiutil attach "$INSTALLER_CACHE/fpc.dmg"
           FPC_VOL=$(ls -d /Volumes/fpc* | head -1)
           FPC_PKG=$(find "$FPC_VOL" -maxdepth 1 -name "*.pkg" | head -1)
           sudo installer -package "$FPC_PKG" -target /
           sudo hdiutil detach "$FPC_VOL"
-          xattr -cr "$RUNNER_TEMP/lazarus.zip"
-          unzip -q "$RUNNER_TEMP/lazarus.zip" -d "$RUNNER_TEMP"
+          xattr -cr "$INSTALLER_CACHE/lazarus.zip"
+          unzip -q "$INSTALLER_CACHE/lazarus.zip" -d "$RUNNER_TEMP"
           sed -i '' 's|"/Developer/lazarus/"|"'$RUNNER_TEMP'/lazarus/"|g' "$RUNNER_TEMP/lazarus/config/environmentoptions.xml" 2>/dev/null || true
           sudo ln -sf "$RUNNER_TEMP/lazarus/lazbuild" /usr/local/bin/lazbuild
           echo "$RUNNER_TEMP/lazarus" >> $GITHUB_PATH
+
+      - name: Patch Lazarus 4.8 (macOS)
+        run: |
+          LAZARUS_DIR="$RUNNER_TEMP/lazarus"
+          test -f "$LAZARUS_DIR/lcl/include/lclintf.inc"
+          for p in "$GITHUB_WORKSPACE"/extra/lazarus-patches/4.8/*.patch; do
+            patch -d "$LAZARUS_DIR" -p1 --dry-run < "$p"
+            patch -d "$LAZARUS_DIR" -p1 < "$p"
+          done
+          grep -Fq "LCLIntf.SetCanvasScaleFactor(NodeBitmap.Canvas.Handle, ScaleFactor);" "$LAZARUS_DIR/components/virtualtreeview/laz.virtualtrees.pas"
+          grep -Fq "CGContextScaleCTM(ctx.CGContext, AScaleRatio, AScaleRatio);" "$LAZARUS_DIR/lcl/interfaces/cocoa/cocoalclintf.inc"
 
       - name: Import code signing certificate
         env:
@@ -238,6 +374,37 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
           rm -f "$RUNNER_TEMP/certificate.p12"
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Install FreeTDS (macOS)
+        run: |
+          brew install freetds
+
+      # The Firebird macOS pkg is unpacked instead of installed via "installer",
+      # to avoid running a Firebird server on the build runner.
+      # The pkg is cached in ~/firebird-installers, served by actions/cache.
+      # Bump the cache key when changing the pkg URL in this step.
+      - name: Cache Firebird client (macOS)
+        uses: actions/cache@v6
+        with:
+          path: ~/firebird-installers
+          key: firebird-client-macos-arm64-5.0.4
+      - name: Get Firebird client (macOS)
+        run: |
+          INSTALLER_CACHE="$HOME/firebird-installers"
+          mkdir -p "$INSTALLER_CACHE"
+          FIREBIRD_PKG="$INSTALLER_CACHE/Firebird-5.0.4.1812-0-macos-arm64.pkg"
+          if [ ! -s "$FIREBIRD_PKG" ]; then
+            wget -q "https://github.com/FirebirdSQL/firebird/releases/download/v5.0.4/Firebird-5.0.4.1812-0-macos-arm64.pkg" -O "$FIREBIRD_PKG"
+          fi
+          # pkgutil --expand requires its target directory to not exist yet
+          rm -rf "$RUNNER_TEMP/firebird-pkg" "$RUNNER_TEMP/firebird-root"
+          mkdir -p "$RUNNER_TEMP/firebird-root"
+          pkgutil --expand "$FIREBIRD_PKG" "$RUNNER_TEMP/firebird-pkg"
+          # bsdtar (= /usr/bin/tar on macOS) auto-detects the gzip'ed cpio payload
+          (cd "$RUNNER_TEMP/firebird-root" && tar -xf "$RUNNER_TEMP/firebird-pkg/Firebird.pkg/Payload")
+          test -f "$RUNNER_TEMP/firebird-root/Versions/A/Resources/lib/libfbclient.dylib"
+          test -f "$RUNNER_TEMP/firebird-root/Versions/A/Resources/plugins/libSrp.dylib"
+          echo "FBCLIENT_ROOT=$RUNNER_TEMP/firebird-root/Versions/A/Resources" >> "$GITHUB_ENV"
 
       - name: Build HeidiSQL (macOS)
         run: make build-macos
@@ -288,26 +455,48 @@ jobs:
       steps:
         - name: Checkout source code
           uses: actions/checkout@v6
+          with:
+            fetch-depth: 0
 
+        # The installers are downloaded to ~/lazarus-installers, served by actions/cache.
+        # Bump the cache key when changing the installer URLs in the steps of this job.
+        - name: Cache Lazarus 4.8 installers (ARM64)
+          uses: actions/cache@v6
+          with:
+            path: ~/lazarus-installers
+            key: lazarus48-installers-linux-arm64-fpc-3.2.3-qt6pas-6.2.10
         - name: Install Lazarus 4.8 (ARM64)
           run: |
             sudo apt-get update
-            wget -q https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20arm64%20DEB/Lazarus%204.8/fpc-laz_3.2.3-240813_arm64.deb -O /tmp/fpc-laz.deb
-            wget -q https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20arm64%20DEB/Lazarus%204.8/fpc-src_3.2.3-240813_arm64.deb -O /tmp/fpc-src.deb
-            wget -q https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20arm64%20DEB/Lazarus%204.8/lazarus-project_4.8.0-0_arm64.deb -O /tmp/lazarus.deb
-            sudo apt-get install -y /tmp/fpc-laz.deb /tmp/fpc-src.deb /tmp/lazarus.deb
+            INSTALLER_CACHE="$HOME/lazarus-installers"
+            mkdir -p "$INSTALLER_CACHE"
+            if [ ! -s "$INSTALLER_CACHE/fpc-laz_3.2.3-240813_arm64.deb" ]; then
+              wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20arm64%20DEB/Lazarus%204.8/fpc-laz_3.2.3-240813_arm64.deb" -O "$INSTALLER_CACHE/fpc-laz_3.2.3-240813_arm64.deb"
+            fi
+            if [ ! -s "$INSTALLER_CACHE/fpc-src_3.2.3-240813_arm64.deb" ]; then
+              wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20arm64%20DEB/Lazarus%204.8/fpc-src_3.2.3-240813_arm64.deb" -O "$INSTALLER_CACHE/fpc-src_3.2.3-240813_arm64.deb"
+            fi
+            if [ ! -s "$INSTALLER_CACHE/lazarus-project_4.8.0-0_arm64.deb" ]; then
+              wget -q "https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20arm64%20DEB/Lazarus%204.8/lazarus-project_4.8.0-0_arm64.deb" -O "$INSTALLER_CACHE/lazarus-project_4.8.0-0_arm64.deb"
+            fi
+            sudo apt-get install -y "$INSTALLER_CACHE/fpc-laz_3.2.3-240813_arm64.deb" "$INSTALLER_CACHE/fpc-src_3.2.3-240813_arm64.deb" "$INSTALLER_CACHE/lazarus-project_4.8.0-0_arm64.deb"
             echo "/usr/lib/lazarus/4.8" >> $GITHUB_PATH
 
         - name: Install Qt6 for ARM64
           run: |
             sudo apt-get update
             sudo apt-get install -y wget qt6-base-dev
+            INSTALLER_CACHE="$HOME/lazarus-installers"
+            mkdir -p "$INSTALLER_CACHE"
             LIBQT6PAS_VERSION="6.2.10"
-            wget -q "https://github.com/davidbannon/libqt6pas/releases/download/v${LIBQT6PAS_VERSION}/libqt6pas6_${LIBQT6PAS_VERSION}-1_arm64.deb" -O /tmp/libqt6pas6.deb
-            sudo dpkg -i /tmp/libqt6pas6.deb || sudo apt-get install -f -y
-            wget -q "https://github.com/davidbannon/libqt6pas/releases/download/v${LIBQT6PAS_VERSION}/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_arm64.deb" -O /tmp/libqt6pas6-dev.deb
-            sudo dpkg -i /tmp/libqt6pas6-dev.deb || sudo apt-get install -f -y
-            rm -f /tmp/libqt6pas6.deb /tmp/libqt6pas6-dev.deb
+            if [ ! -s "$INSTALLER_CACHE/libqt6pas6_${LIBQT6PAS_VERSION}-1_arm64.deb" ]; then
+              wget -q "https://github.com/davidbannon/libqt6pas/releases/download/v${LIBQT6PAS_VERSION}/libqt6pas6_${LIBQT6PAS_VERSION}-1_arm64.deb" -O "$INSTALLER_CACHE/libqt6pas6_${LIBQT6PAS_VERSION}-1_arm64.deb"
+            fi
+            sudo dpkg -i "$INSTALLER_CACHE/libqt6pas6_${LIBQT6PAS_VERSION}-1_arm64.deb" || sudo apt-get install -f -y
+            if [ ! -s "$INSTALLER_CACHE/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_arm64.deb" ]; then
+              wget -q "https://github.com/davidbannon/libqt6pas/releases/download/v${LIBQT6PAS_VERSION}/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_arm64.deb" -O "$INSTALLER_CACHE/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_arm64.deb"
+            fi
+            sudo dpkg -i "$INSTALLER_CACHE/libqt6pas6-dev_${LIBQT6PAS_VERSION}-1_arm64.deb" || sudo apt-get install -f -y
 
         - name: Patch Lazarus 4.8 for QT6
           run: |
@@ -382,7 +571,16 @@ jobs:
                 name: macos-app-bundle
                 path: dist
             - name: Rename macOS app bundle for release
-              run: mv dist/heidisql-macos-app.zip "dist/HeidiSQL-macos-${{ env.tag }}.zip"
+              run: mv dist/heidisql-macos-app.zip "dist/heidisql_${tag#v}_macos_app.zip"
+
+            # TODO: re-enable once the official installer is built in CI again.
+            # Until then, the official Windows installer is built manually on the maintainer's machine
+            # and must not be attached to the GitHub release.
+            # - name: Download Windows installer
+            #   uses: actions/download-artifact@v7
+            #   with:
+            #     name: windows-installer
+            #     path: dist
 
             - name: List files
               run: |

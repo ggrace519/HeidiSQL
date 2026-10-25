@@ -26,6 +26,9 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
   version and the HeidiSQL version it is based on.
 
 ### Changed
+- Based on upstream HeidiSQL 12.22 (Lazarus branch): Firebird/InterBase support, a role manager
+  for PostgreSQL, a login manager for MS SQL Server, a Windows installer build and macOS fixes. See
+  [CHANGELOG.md](CHANGELOG.md).
 - The update check looks for AI Edition releases on GitHub (tags `ai-v<version>`) instead of
   stock HeidiSQL releases on heidisql.com.
 - Usage statistics are no longer sent to the upstream heidisql.com service, and the option is

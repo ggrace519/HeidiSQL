@@ -148,6 +148,7 @@ type
     property WarningCount: Int64 read FWarningCount;
     property Aborted: Boolean read FAborted write FAborted;
     property ErrorMessage: String read FErrorMessage;
+    property BatchInOneGo: Boolean read FBatchInOneGo;
     constructor Create(Connection: TDBConnection; Batch: TSQLBatch; TabNumber: Integer);
     procedure Execute; override;
     procedure LogFromThread(Msg: String; Category: TDBLogCategory);
@@ -214,7 +215,7 @@ type
     asTableToolsFindTextTab, asTableToolsFindText, asTableToolsFindSQL, asTableToolsDatatype, asTableToolsFindCaseSensitive, asTableToolsFindMatchType, asFileImportWindowWidth, asFileImportWindowHeight,
     asEditVarWindowWidth, asEditVarWindowHeight, asUsermanagerWindowWidth, asUsermanagerWindowHeight, asUsermanagerListWidth,
     asSelectDBOWindowWidth, asSelectDBOWindowHeight,
-    asSessionManagerListWidth, asSessionManagerListFoldersAtTop, asSessionManagerWindowWidth, asSessionManagerWindowHeight, asSessionManagerWindowLeft, asSessionManagerWindowTop,
+    asSessionManagerListWidth, asSessionManagerListFoldersAtTop, asSessionManagerWindowWidth, asSessionManagerWindowHeight, asSessionManagerWindowLeft, asSessionManagerWindowTop, asSessionManagerWinRegistryImport,
     asCopyTableWindowHeight, asCopyTableWindowWidth, asCopyTableColumns, asCopyTableKeys, asCopyTableForeignKeys,
     asCopyTableData, asCopyTableRecentFilter, asServerVersion, asServerVersionFull, asLastConnect,
     asConnectCount, asRefusedCount, asSessionCreated, asDoUsageStatistics,
@@ -268,6 +269,9 @@ type
         Session: Boolean=False);
       procedure SetSessionPath(Value: String);
       procedure PrepareRegistry;
+      {$IFDEF WINDOWS}
+      procedure CopyWinRegistryKey(Reg: TRegistry; RegPath, TargetPath: String);
+      {$ENDIF}
       procedure Read(Index: TAppSettingIndex; FormatName: String;
         DataType: TAppSettingDataType; out I: Integer; out B: Boolean; out S: String;
         DI: Integer; DB: Boolean; DS: String);
@@ -307,6 +311,9 @@ type
       property PortableMode: Boolean read FPortableMode;
       property Writes: Integer read FWrites;
       function ConvertWindowsToLinuxPath(Path: String): String;
+      // Settings stored in the Windows registry by previous versions
+      function WinRegistryExists: Boolean;
+      function ImportWinRegistrySettings: Boolean;
       procedure ImportSettings(Filename: String);
       function ExportSettings(Filename: String): Boolean;
       // Common directories
@@ -1554,6 +1561,7 @@ begin
   VT.OnGetHint := MainForm.AnyGridGetHint;
   VT.OnScroll := MainForm.AnyGridScroll;
   VT.OnMouseWheel := MainForm.AnyGridMouseWheel;
+  VT.OnMouseMove := MainForm.AnyGridMouseMove;
   VT.ShowHint := True;
 
   if IsResultGrid then begin
@@ -3211,7 +3219,15 @@ begin
       end;
     end;
     FConnection.SetLockedByThread(nil);
-    Synchronize(AfterQuery);
+    try
+      Synchronize(AfterQuery);
+    except
+      // Synchronize re-raises here. Without BatchFinished, the tab would stay in running state forever.
+      on E:Exception do begin
+        FErrorMessage := E.Message;
+        ErrorAborted := True;
+      end;
+    end;
     // Check if FAborted is set by the main thread, to avoid proceeding the loop in case
     // FStopOnErrors is set to false
     if FAborted or ErrorAborted then
@@ -3607,7 +3623,21 @@ procedure TCustomComboBoxHelper.AutoSizeItemWidth;
 var
   I, TextW, MaxTextW, MaxW: Integer;
   ExtraPad: Integer;
+  Ctl: TWinControl;
 begin
+  // Measuring text forces creation of the control canvas, which requires a
+  // parent window somewhere in the ancestor chain. Skip when there is none,
+  // e.g. when called from a frame constructor before it is parented.
+  // See issue #2605.
+  Ctl := Self;
+  while Ctl <> nil do begin
+    if Ctl.HandleAllocated or (Ctl is TCustomForm) then
+      Break;
+    if Ctl.Parent = nil then
+      Exit;
+    Ctl := Ctl.Parent;
+  end;
+
   MaxW := Scale96ToForm(500);
 
   Canvas.Font.Assign(Font);
@@ -3861,6 +3891,7 @@ begin
   InitSetting(asSessionManagerWindowHeight,       'SessionManager_WindowHeight',           490);
   InitSetting(asSessionManagerWindowLeft,         'SessionManager_WindowLeft',             50);
   InitSetting(asSessionManagerWindowTop,          'SessionManager_WindowTop',              50);
+  InitSetting(asSessionManagerWinRegistryImport, 'SessionManager_WinRegistryImport',     0, False);
   InitSetting(asCopyTableWindowHeight,            'CopyTable_WindowHeight',                340);
   InitSetting(asCopyTableWindowWidth,             'CopyTable_WindowWidth',                 380);
   InitSetting(asCopyTableColumns,                 'CopyTable_Columns',                     0, True);
@@ -4406,11 +4437,105 @@ begin
 end;
 
 
+function TAppSettings.WinRegistryExists: Boolean;
+{$IFDEF WINDOWS}
+var
+  Reg: TRegistry;
+begin
+  // Detect settings stored in the Windows registry by a previous version
+  Reg := TRegistry.Create;
+  try
+    Reg.RootKey := HKEY_CURRENT_USER;
+    Result := Reg.OpenKeyReadOnly(WINREGKEY);
+  finally
+    Reg.Free;
+  end;
+end;
+{$ELSE}
+begin
+  // No Windows registry on this platform
+  Result := False;
+end;
+{$ENDIF}
+
+{$IFDEF WINDOWS}
+procedure TAppSettings.CopyWinRegistryKey(Reg: TRegistry; RegPath, TargetPath: String);
+var
+  ValueNames, SubKeys: TStringList;
+  i: Integer;
+  ValueName, SubKey: String;
+begin
+  // Copy all values and subkeys of a registry key into the JSON registry.
+  // TargetPath must have a trailing PathDelimiter
+  if not Reg.OpenKeyReadOnly(RegPath) then
+    Exit;
+  ValueNames := TStringList.Create;
+  SubKeys := TStringList.Create;
+  try
+    Reg.GetValueNames(ValueNames);
+    Reg.GetKeyNames(SubKeys);
+    FRegistry.OpenKey(TargetPath, True);
+    for i:=0 to ValueNames.Count-1 do begin
+      ValueName := ValueNames[i];
+      if FRegistry.ValueExists(ValueName) then
+        Continue; // Don't touch value if already there
+      case Reg.GetDataType(ValueName) of
+        rdString, rdExpandString:
+          FRegistry.WriteString(ValueName, Reg.ReadString(ValueName));
+        rdInteger:
+          FRegistry.WriteInteger(ValueName, Reg.ReadInteger(ValueName));
+          // Values of other data types are silently skipped
+      end;
+    end;
+    for i:=0 to SubKeys.Count-1 do begin
+      // A slash in a key name would collide with the JSON path delimiter,
+      // e.g. in a session name "A/B". Replace it by a dash first.
+      // Same replacement as in session renaming, see issue #682.
+      SubKey := StringReplace(SubKeys[i], PathDelimiter, '-', [rfReplaceAll]);
+      CopyWinRegistryKey(Reg, RegPath+'\'+SubKeys[i], TargetPath+SubKey+PathDelimiter);
+    end;
+  finally
+    SubKeys.Free;
+    ValueNames.Free;
+  end;
+end;
+{$ENDIF}
+
+function TAppSettings.ImportWinRegistrySettings: Boolean;
+{$IFDEF WINDOWS}
+var
+  Reg: TRegistry;
+begin
+  // Import all settings and sessions stored in the Windows registry by a
+  // previous version into the JSON registry, the same way the settings file
+  // import does. The registry root key maps to the JSON root path,
+  // values which already exist are left alone
+  Result := False;
+  Reg := TRegistry.Create;
+  try
+    Reg.RootKey := HKEY_CURRENT_USER;
+    if not Reg.OpenKeyReadOnly(WINREGKEY) then
+      Exit;
+    CopyWinRegistryKey(Reg, WINREGKEY, PathDelimiter);
+    Result := True;
+  finally
+    Reg.Free;
+  end;
+  FRegistry.FlushToDisk;
+  FRegistry.OpenKey(PathDelimiter, True);
+end;
+{$ELSE}
+begin
+  // No Windows registry on this platform
+  Result := False;
+end;
+{$ENDIF}
+
 procedure TAppSettings.ImportSettings(Filename: String);
 var
   Content, Name, Value, KeyPath: String;
   Lines, Segments: TStringList;
-  i: Integer;
+  i, NamePos: Integer;
   DataType: Integer;
 begin
   // Load registry settings from file
@@ -4427,9 +4552,14 @@ begin
     if Segments.Count <> 3 then
       continue;
     // Windows registry to JSON path delimiter conversion: \ => /
-    Segments[0] := StringReplace(Segments[0], '\', PathDelimiter, [rfReplaceAll]);
-    KeyPath := PathDelimiter + ExtractFilePath(Segments[0]);
-    Name := ExtractFileName(Segments[0]);
+    // A slash in a key name would collide with the JSON path delimiter,
+    // e.g. in a session name "A/B". Replace it by a dash first, in the key
+    // path only, not in the value name. Same replacement as in session
+    // renaming, see issue #682. See https://www.heidisql.com/forum.php?t=44817
+    NamePos := LastDelimiter('\', Segments[0]);
+    KeyPath := StringReplace(Copy(Segments[0], 1, NamePos), '/', '-', [rfReplaceAll]);
+    KeyPath := PathDelimiter + StringReplace(KeyPath, '\', PathDelimiter, [rfReplaceAll]);
+    Name := Copy(Segments[0], NamePos+1, MaxInt);
     DataType := StrToIntDef(Segments[1], 0);
     FRegistry.OpenKey(KeyPath, True);
     if FRegistry.ValueExists(Name) then

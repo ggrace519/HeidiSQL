@@ -31,7 +31,7 @@ type
     ntSQLiteEncrypted
     );
   TNetTypeGroup = (ngMySQL, ngMSSQL, ngPgSQL, ngSQLite, ngInterbase);
-  TNetTypeLibs = TDictionary<TNetType, TStringList>;
+  TNetTypeLibs = TDictionary<Integer, TStringList>; // Key = Ord(TNetType), see issue #2640
 
   // SQL query ids and provider
   TStringMap = TDictionary<string,string>;
@@ -51,27 +51,24 @@ type
     qHelpKeyword, qShowWarnings, qGetEnumTypes,
     qDropUser, qCreateRole, qDropRole, qReloadPrivileges, qGrantRole, qRevokeRole, qSetDefaultRole,
     qAutoInc, qIndexVisible, qIndexInvisible, qGetAuthPlugins, qCastAsText, qIndexSize,
-    qPgRolemanRolesList,
-    qPgRolemanRoleLoad,
-    qPgRolemanMembershipsLoad,
-    qPgRolemanObjPrivsDatabasesLoad,
-    qPgRolemanObjPrivsSchemasLoad,
-    qPgRolemanObjPrivsTablesViewsLoad,
-    qPgRolemanObjPrivsSequencesLoad,
-    qPgRolemanObjPrivsRoutinesLoad,
-    qPgRolemanDefaultPrivsLoad,
-    qPgRolemanRoleCreate,
-    qPgRolemanRoleAlter,
-    qPgRolemanRolePasswordClear,
-    qPgRolemanRolePasswordSet,
-    qPgRolemanRoleDrop,
-    qPgRolemanMembershipGrant,
-    qPgRolemanMembershipRevoke,
-    qPgRolemanMembershipRegrant,
-    qPgRolemanObjPrivGrant,
-    qPgRolemanObjPrivRevoke,
-    qPgRolemanDefaultPrivGrant,
-    qPgRolemanDefaultPrivRevoke
+    qPgRoleAttributes,
+    qPgRoleMemberships,
+    qPgRoleCreate,
+    qPgRoleAlter,
+    qPgRoleRename,
+    qPgRoleDrop,
+    qPgRoleMembershipGrant,
+    qPgRoleMembershipRevoke,
+    qMssqlLoginAttributes,
+    qMssqlServerRoles,
+    qMssqlLoginMemberships,
+    qMssqlDatabases,
+    qMssqlLoginCreate,
+    qMssqlLoginAlter,
+    qMssqlLoginRename,
+    qMssqlLoginDrop,
+    qMssqlRoleMembershipGrant,
+    qMssqlRoleMembershipRevoke
     );
   TSqlProvider = class
     strict protected
@@ -98,7 +95,8 @@ type
     dbdtBinary, dbdtVarbinary, dbdtTinyblob, dbdtBlob, dbdtMediumblob, dbdtLongblob, dbdtVector, dbdtImage,
     dbdtEnum, dbdtSet, dbdtBit, dbdtVarBit, dbdtBool, dbdtRegClass, dbdtRegProc, dbdtUnknown,
     dbdtCursor, dbdtSqlvariant, dbdtTable, dbdtUniqueidentifier, dbdtInet4, dbdtInet6, dbdtHierarchyid, dbdtXML,
-    dbdtPoint, dbdtLinestring, dbdtLineSegment, dbdtPolygon, dbdtGeometry, dbdtBox, dbdtPath, dbdtCircle, dbdtMultipoint, dbdtMultilinestring, dbdtMultipolygon, dbdtGeometrycollection
+    dbdtPoint, dbdtLinestring, dbdtLineSegment, dbdtPolygon, dbdtGeometry, dbdtBox, dbdtPath, dbdtCircle, dbdtMultipoint, dbdtMultilinestring, dbdtMultipolygon, dbdtGeometrycollection,
+    dbdtDecfloat, dbdtInt128
     );
 
   // Column type categorization

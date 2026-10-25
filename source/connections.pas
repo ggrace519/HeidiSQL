@@ -29,6 +29,8 @@ type
     btnDelete: TBitBtn;
     chkForceUnicode: TCheckBox;
     lblHelpPortable: TLabel;
+    btnImportSessions: TSpeedButton;
+    lblImportSessions: TLabel;
     lblSshPassHint: TLabel;
     pnlBottom: TPanel;
     popupSessions: TPopupMenu;
@@ -182,6 +184,7 @@ type
     procedure comboNetTypeChange(Sender: TObject);
     procedure splitterMainMoved(Sender: TObject);
     procedure timerSettingsImportTimer(Sender: TObject);
+    procedure btnImportSessionsClick(Sender: TObject);
     procedure ListSessionsStructureChange(Sender: TBaseVirtualTree;
       Node: PVirtualNode; Reason: TChangeReason);
     procedure ListSessionsDragOver(Sender: TBaseVirtualTree; Source: TObject;
@@ -196,6 +199,7 @@ type
     procedure ColorBoxBackgroundColorGetColors(Sender: TCustomColorBox;
       Items: TStrings);
     procedure editTrim(Sender: TObject);
+    procedure editHostExit(Sender: TObject);
     procedure editSearchChange(Sender: TObject);
     procedure editSearchRightButtonClick(Sender: TObject);
     procedure editHostDblClick(Sender: TObject);
@@ -222,6 +226,7 @@ type
     FAiPanel: TAiSessionPanel;
     FServerVersion: String;
     FSettingsImportWaitTime: Cardinal;
+    FWinRegistryRootExists: Boolean;
     FPopupDatabases: TPopupMenu;
     FPopupCiphers: TPopupMenu;
     FButtonAnimationStep: Integer;
@@ -229,6 +234,7 @@ type
     function GetSelectedNetType: TNetType;
     procedure SetSelectedNetType(Value: TNetType);
     procedure RefreshSessions(ParentNode: PVirtualNode);
+    procedure UpdateWinRegistryImportControls;
     function SelectedSessionPath: String;
     function CurrentParams: TConnectionParameters;
     procedure FinalizeModifications(var CanProceed: Boolean);
@@ -287,6 +293,8 @@ begin
   ListSessions.OnHeaderClick := MainForm.AnyGridHeaderClick;
   ListSessions.OnHeaderDraggedOut := MainForm.AnyGridHeaderDraggedOut;
   btnImportSettings.Caption := MainForm.actImportSettings.Caption;
+  btnImportSessions.Caption := _('Import settings from Windows registry');
+  lblImportSessions.Caption := _('Previous versions of HeidiSQL stored your settings and sessions in the Windows registry. Click on the button above to import them, so they will appear in this application. This import is only needed once. If you have an exported settings file (.txt), use the top button instead, which imports the same from that file.');
   FLoaded := False;
   menuFoldersAtTop.Checked := AppSettings.ReadBool(asSessionManagerListFoldersAtTop);
   FSettingsImportWaitTime := 0;
@@ -421,6 +429,10 @@ var
   Node: PVirtualNode;
 begin
   RestoreListSetup(ListSessions);
+
+  // Detect settings stored in the Windows registry by a previous version, once per show
+  FWinRegistryRootExists := AppSettings.WinRegistryExists;
+  UpdateWinRegistryImportControls;
 
   // Init sessions tree
   RefreshSessions(nil);
@@ -591,6 +603,8 @@ begin
   while not NameOK do begin
     if not InputQuery(_('Clone session ...'), _('New session name:'), newName) then
       Exit; // Cancelled
+    // Safety replacement for folder separator, see issue #682
+    newName := StringReplace(newName, AppSettings.PathDelimiter, '-', [rfReplaceAll]);
     NameOK := SessionNames.IndexOf(newName) = -1;
     if not NameOK then
       ErrorDialog(f_('Session "%s" already exists!', [ParentKey+newName]))
@@ -608,6 +622,30 @@ begin
   SessionNames.Free;
 end;
 
+
+procedure Tconnform.UpdateWinRegistryImportControls;
+begin
+  // Offer the import only if the previous version's registry root key exists,
+  // and if the import was never done before
+  btnImportSessions.Visible := FWinRegistryRootExists
+    and (not AppSettings.ReadBool(asSessionManagerWinRegistryImport));
+  lblImportSessions.Visible := btnImportSessions.Visible;
+end;
+
+procedure Tconnform.btnImportSessionsClick(Sender: TObject);
+begin
+  // Copy all settings and sessions stored in the Windows registry by a previous
+  // version into the JSON registry. Existing values are left alone.
+  AppSettings.ImportWinRegistrySettings;
+  // Ensure this button is not offered again after the import has run once
+  AppSettings.WriteBool(asSessionManagerWinRegistryImport, True);
+  UpdateWinRegistryImportControls;
+  RefreshSessions(nil);
+  SelectNode(ListSessions, nil);
+  if ListSessions.GetFirst <> nil then
+    SelectNode(ListSessions, ListSessions.GetFirst);
+  MessageDialog(_('Imported settings and sessions from the Windows registry.'), mtInformation, [mbOK]);
+end;
 
 procedure Tconnform.timerSettingsImportTimer(Sender: TObject);
 begin
@@ -1039,6 +1077,7 @@ begin
   menuNewFolderInFolder.Enabled := InFolder;
   FreeAndNil(FPopupDatabases);
   FreeAndNil(FPopupCiphers);
+  UpdateWinRegistryImportControls;
 
   if not SessionFocused then begin
     PageControlDetails.ActivePage := tabStart;
@@ -1280,6 +1319,48 @@ begin
   end;
 end;
 
+
+procedure Tconnform.editHostExit(Sender: TObject);
+var
+  ColonPos, PortNumber, i: Integer;
+  HostPart, PortPart: String;
+begin
+  // Trim input, then move a pasted "host:port" value into the port field. See issue #2608
+  editTrim(Sender);
+  if (Sender <> editHost) or not spinPort.Enabled then
+    Exit;
+  HostPart := editHost.Text;
+  PortPart := '';
+  if HostPart.StartsWith('[') then begin
+    // IPv6 in bracket notation, e.g. [2001:db8::1]:3306
+    ColonPos := HostPart.IndexOf(']:');
+    if ColonPos > 0 then begin
+      PortPart := HostPart.Substring(ColonPos + 2);
+      HostPart := HostPart.Substring(0, ColonPos + 1);
+    end;
+  end
+  else begin
+    // Hostname or IPv4 with port, e.g. example.com:3306. More than one colon
+    // means an unbracketed IPv6 address like 2001:db8::1, which we leave as-is.
+    ColonPos := HostPart.LastIndexOf(':');
+    if (ColonPos > 0) and (Pos(':', HostPart) = ColonPos + 1) then begin
+      PortPart := HostPart.Substring(ColonPos + 1);
+      HostPart := HostPart.Substring(0, ColonPos);
+    end;
+  end;
+  if (HostPart = '') or (PortPart = '') then
+    Exit;
+  // Require a numeric TCP port in the range 1-65535
+  for i := 1 to Length(PortPart) do
+    if not (PortPart[i] in ['0'..'9']) then
+      Exit;
+  if not TryStrToInt(PortPart, PortNumber) then
+    Exit;
+  if (PortNumber < 1) or (PortNumber > 65535) then
+    Exit;
+  editHost.Text := HostPart;
+  spinPort.Value := PortNumber;
+end;
 
 procedure Tconnform.chkLoginPromptClick(Sender: TObject);
 var
