@@ -7433,3 +7433,51 @@ msgstr "The AI assistant is off for session \"%s\". Turn it on in the session ma
 
 msgid "Type a question first."
 msgstr "Type a question first."
+
+msgid "Fix error"
+msgstr "Fix error"
+
+msgid "Ask the AI provider to correct the failed query. The fix is not executed."
+msgstr "Ask the AI provider to correct the failed query. The fix is not executed."
+
+msgid "Last query failed: %s"
+msgstr "Last query failed: %s"
+
+msgid "No failed query to fix in this query tab."
+msgstr "No failed query to fix in this query tab."
+
+msgid "Explain query with AI"
+msgstr "Explain query with AI"
+
+msgid "Let the AI assistant explain the selected SQL, or the whole editor text"
+msgstr "Let the AI assistant explain the selected SQL, or the whole editor text"
+
+msgid "Optimize query with AI"
+msgstr "Optimize query with AI"
+
+msgid "Let the AI assistant suggest a faster version of the selected SQL and indexes for it"
+msgstr "Let the AI assistant suggest a faster version of the selected SQL and indexes for it"
+
+msgid "Fix error with AI"
+msgstr "Fix error with AI"
+
+msgid "Let the AI assistant correct the last failed query of this tab"
+msgstr "Let the AI assistant correct the last failed query of this tab"
+
+msgid "Explain: %s"
+msgstr "Explain: %s"
+
+msgid "Optimize: %s"
+msgstr "Optimize: %s"
+
+msgid "Fix error: %s"
+msgstr "Fix error: %s"
+
+msgid "The query editor is empty. Write or select the SQL first."
+msgstr "The query editor is empty. Write or select the SQL first."
+
+msgid "The SQL is too long to send. Select the statement to work on first."
+msgstr "The SQL is too long to send. Select the statement to work on first."
+
+msgid "The query failed in database \"%s\". Select that database to fix it."
+msgstr "The query failed in database \"%s\". Select that database to fix it."

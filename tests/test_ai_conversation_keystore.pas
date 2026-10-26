@@ -198,11 +198,13 @@ end;
 
 procedure TAiConversationTest.QueryErrorRemembered;
 begin
-  FConv.SetQueryError('SELECT x', 'Unknown column');
+  FConv.SetQueryError('SELECT x', 'Unknown column', 'shop');
   AssertEquals('SELECT x', FConv.LastErrorSql);
   AssertEquals('Unknown column', FConv.LastErrorMessage);
+  AssertEquals('shop', FConv.LastErrorDatabase);
   FConv.Clear;
   AssertEquals('', FConv.LastErrorSql);
+  AssertEquals('', FConv.LastErrorDatabase);
   AssertEquals(0, FConv.Count);
 end;
 

@@ -10,6 +10,9 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
   streams into a panel on the right; Insert, Replace or Copy put the SQL into the query editor
   without running it. Data- and structure-changing SQL is marked. Each query tab keeps its own
   conversation, and "Context sent" shows exactly what went to the provider.
+- **Explain, Optimize and Fix error** with AI, in the Query menu and the editor's context menu:
+  explain the selected SQL in plain language, get a faster version with index suggestions, or,
+  after a query fails, get corrected SQL for the failed statement. Nothing is executed.
 - **LLM Settings** tab in the session manager: enable the AI assistant per session (off by
   default), choose its provider, and write notes about the database that the model cannot see in
   the schema (e.g. units, soft deletes). The tab states exactly what is sent to the provider.

@@ -22,6 +22,9 @@ type
     FLabelStatus: TLabel;
     FMemoTranscript: TMemo;
     FBarSql: TPanel;
+    FBarError: TPanel;
+    FLabelError: TLabel;
+    FBtnFixError: TButton;
     FComboBlocks: TComboBox;
     FLabelBadge: TLabel;
     FBtnInsert, FBtnReplace, FBtnCopy, FBtnContext: TButton;
@@ -35,6 +38,7 @@ type
     FOnCancel: TNotifyEvent;
     FOnClear: TNotifyEvent;
     FOnPutSql: TAiPutSqlEvent;
+    FOnFixError: TNotifyEvent;
     function S(Value: Integer): Integer;
     function NewButton(AParent: TWinControl; const ACaption: String; Handler: TNotifyEvent): TButton;
     function SelectedSql: String;
@@ -45,6 +49,7 @@ type
     procedure InsertClick(Sender: TObject);
     procedure ReplaceClick(Sender: TObject);
     procedure CopyClick(Sender: TObject);
+    procedure FixErrorClick(Sender: TObject);
     procedure ContextClick(Sender: TObject);
     procedure BlocksChange(Sender: TObject);
     procedure PromptKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -55,6 +60,8 @@ type
     property CanSend: Boolean read FCanSend write FCanSend;
     // Shows a conversation; nil clears the view. Busy disables sending and enables Cancel.
     procedure ShowConversation(Conversation: TAiConversation; Busy: Boolean);
+    // Offers "Fix error" for the active tab's last failed query; '' hides it
+    procedure ShowQueryError(const Message: String);
     procedure FocusPrompt;
     procedure ClearPrompt;
     function PromptText: String;
@@ -62,6 +69,7 @@ type
     property OnCancel: TNotifyEvent read FOnCancel write FOnCancel;
     property OnClear: TNotifyEvent read FOnClear write FOnClear;
     property OnPutSql: TAiPutSqlEvent read FOnPutSql write FOnPutSql;
+    property OnFixError: TNotifyEvent read FOnFixError write FOnFixError;
   end;
 
 implementation
@@ -112,10 +120,28 @@ begin
   Bottom.Align := alBottom;
   Bottom.AutoSize := True;
 
+  // Shown while the active tab's last query failed
+  FBarError := TPanel.Create(Self);
+  FBarError.Parent := Bottom;
+  FBarError.BevelOuter := bvNone;
+  FBarError.Align := alTop;
+  FBarError.AutoSize := True;
+  FBarError.BorderSpacing.Around := S(4);
+  FBtnFixError := NewButton(FBarError, _('Fix error'), FixErrorClick);
+  FBtnFixError.Hint := _('Ask the AI provider to correct the failed query. The fix is not executed.');
+  FLabelError := TLabel.Create(Self);
+  FLabelError.Parent := FBarError;
+  FLabelError.Align := alClient;
+  FLabelError.WordWrap := True;
+  FLabelError.Layout := tlCenter;
+  FLabelError.Font.Color := clRed;
+  FBarError.Visible := False;
+
   FBarSql := TPanel.Create(Self);
   FBarSql.Parent := Bottom;
   FBarSql.BevelOuter := bvNone;
   FBarSql.Align := alTop;
+  FBarSql.Top := FBarError.Top + FBarError.Height + 1;
   FBarSql.AutoSize := True;
   FBarSql.BorderSpacing.Around := S(4);
   FBtnInsert := NewButton(FBarSql, _('Insert'), InsertClick);
@@ -379,6 +405,20 @@ procedure TAiPanel.CopyClick(Sender: TObject);
 begin
   if SelectedSql <> '' then
     Clipboard.AsText := SelectedSql;
+end;
+
+procedure TAiPanel.FixErrorClick(Sender: TObject);
+begin
+  if Assigned(FOnFixError) then
+    FOnFixError(Self);
+end;
+
+procedure TAiPanel.ShowQueryError(const Message: String);
+begin
+  FLabelError.Caption := f_('Last query failed: %s', [Utf8Truncate(Trim(Message), 200)]);
+  FBarError.Visible := Message <> '';
+  // Disabled while a request runs, like the other ask buttons
+  FBtnFixError.Enabled := not FBtnCancel.Enabled;
 end;
 
 procedure TAiPanel.ContextClick(Sender: TObject);

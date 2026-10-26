@@ -38,6 +38,7 @@ type
     FMaxHistoryAnswerChars: Integer;
     FLastErrorSql: String;
     FLastErrorMessage: String;
+    FLastErrorDatabase: String;
     function GetCount: Integer;
     function GetTurn(Index: Integer): TAiTurn;
   public
@@ -56,7 +57,8 @@ type
     // Reasoning is never sent back; long answers are shortened.
     function History: TAiChatMessages;
     // Remembers the last failed query of the tab, for "Fix error"
-    procedure SetQueryError(const Sql, Message: String);
+    // Database is where the query ran, so a fix is not asked for with another database's schema
+    procedure SetQueryError(const Sql, Message, Database: String);
     procedure Clear;
     property Count: Integer read GetCount;
     property Turns[Index: Integer]: TAiTurn read GetTurn; default;
@@ -64,6 +66,7 @@ type
     property MaxHistoryAnswerChars: Integer read FMaxHistoryAnswerChars write FMaxHistoryAnswerChars;
     property LastErrorSql: String read FLastErrorSql;
     property LastErrorMessage: String read FLastErrorMessage;
+    property LastErrorDatabase: String read FLastErrorDatabase;
   end;
 
 implementation
@@ -201,10 +204,11 @@ begin
   end;
 end;
 
-procedure TAiConversation.SetQueryError(const Sql, Message: String);
+procedure TAiConversation.SetQueryError(const Sql, Message, Database: String);
 begin
   FLastErrorSql := Sql;
   FLastErrorMessage := Message;
+  FLastErrorDatabase := Database;
 end;
 
 procedure TAiConversation.Clear;
@@ -212,6 +216,7 @@ begin
   FTurns := nil;
   FLastErrorSql := '';
   FLastErrorMessage := '';
+  FLastErrorDatabase := '';
 end;
 
 end.

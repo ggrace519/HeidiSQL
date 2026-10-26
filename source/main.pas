@@ -1482,7 +1482,7 @@ uses
   copytable, csv_detector, exportgrid, usermanager, rolemanagerpg, rolemanagermssql, reformatter, connections, sqlhelp, updatecheck,
   insertfiles, texteditor, preferences, table_editor, view, routine_editor, trigger_editor, event_editor, grideditlinks,
   crashdialog, selectdbobject,
-  ai.actions, ai.controller; // AI Edition
+  ai.actions, ai.controller, ai.hostcontext; // AI Edition
 
 {$R *.lfm}
 
@@ -3509,6 +3509,12 @@ var
 begin
   // Find right query tab
   Tab := QueryTabs.TabByNumber(Thread.TabNumber);
+
+  // AI Edition: remember a failed statement for "Fix error", or forget it after a success.
+  // Before the modal error dialog, while the connection is certainly still there.
+  if Assigned(AiController) then
+    AiController.QueryFinished(Thread.TabNumber, Thread.Connection.Parameters.SessionPath,
+      Thread.Connection.Database, FailedStatementSql(Thread), Thread.ErrorMessage, Thread.Aborted);
 
   // Error handling
   if not Thread.ErrorMessage.IsEmpty then begin

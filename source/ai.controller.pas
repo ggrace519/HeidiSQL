@@ -11,7 +11,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, ExtCtrls, Forms, ai.types, ai.http, ai.profiles, ai.conversations,
-  ai.panel;
+  ai.requestprep, ai.panel;
 
 type
   TAiController = class(TComponent)
@@ -29,7 +29,10 @@ type
     FShownKey: String;
     FShutDown: Boolean;
     procedure TimerTick(Sender: TObject);
+    procedure RunTask(const Request: TAiTaskRequest);
+    procedure RunEditorTask(Task: TAiTask);
     procedure PanelSend(const Text: String);
+    procedure PanelFixError(Sender: TObject);
     procedure PanelCancel(Sender: TObject);
     procedure PanelClear(Sender: TObject);
     procedure PanelPutSql(const Sql: String; ReplaceAll: Boolean);
@@ -45,6 +48,18 @@ type
     // Shows the conversation and status of the active query tab
     procedure Refresh;
     procedure Generate;
+    // Explain or optimize the selected SQL, or the whole editor text
+    procedure Explain;
+    procedure Optimize;
+    // Fix the last failed query of the active tab
+    procedure FixError;
+    function Busy: Boolean;
+    function ActiveTabHasQueryError: Boolean;
+    // Called after every query run: remembers the failed statement and error, or forgets them
+    // after a success. Runs the user cancelled, and errors without a failed statement (e.g. from
+    // showing the result), leave the record as it is.
+    procedure QueryFinished(TabNumber: Integer; const SessionPath, Database, Sql,
+      ErrorMessage: String; Aborted: Boolean);
     procedure Cancel;
     procedure QueryTabClosed(TabNumber: Integer);
     // Cancels a running request and waits briefly for its worker thread
@@ -58,7 +73,7 @@ var
 implementation
 
 uses
-  Math, apphelpers, ai.conversation, ai.hostcontext, ai.requestprep, ai.uitext, ai.text;
+  Math, apphelpers, ai.conversation, ai.hostcontext, ai.uitext, ai.text;
 
 const
   DRAININTERVALMS = 50;
@@ -87,6 +102,7 @@ begin
   FPanel.OnCancel := PanelCancel;
   FPanel.OnClear := PanelClear;
   FPanel.OnPutSql := PanelPutSql;
+  FPanel.OnFixError := PanelFixError;
   // The database may have changed since the last tab change
   FPanel.OnEnter := PanelEnter;
   FSplitter := TSplitter.Create(AOwner);
@@ -131,6 +147,7 @@ end;
 procedure TAiController.Refresh;
 var
   Host: TAiHostState;
+  Conversation: TAiConversation;
 begin
   if not FPanel.Visible then
     Exit;
@@ -147,7 +164,12 @@ begin
     FPanel.SetStatus(_('Select a database in the tree first. Its tables and columns are sent with the question.'), True)
   else
     FPanel.SetStatus(f_('Session "%s", database "%s"', [Host.SessionName, Host.Database]), False);
-  FPanel.ShowConversation(FConversations.Find(Host.ConversationKey), FTracker.Busy);
+  Conversation := FConversations.Find(Host.ConversationKey);
+  FPanel.ShowConversation(Conversation, FTracker.Busy);
+  if Assigned(Conversation) then
+    FPanel.ShowQueryError(Conversation.LastErrorMessage)
+  else
+    FPanel.ShowQueryError('');
 end;
 
 procedure TAiController.Generate;
@@ -157,6 +179,110 @@ begin
 end;
 
 procedure TAiController.PanelSend(const Text: String);
+var
+  Request: TAiTaskRequest;
+begin
+  Request := Default(TAiTaskRequest);
+  Request.Task := atGenerate;
+  Request.UserText := Text;
+  RunTask(Request);
+end;
+
+procedure TAiController.RunEditorTask(Task: TAiTask);
+var
+  Request: TAiTaskRequest;
+begin
+  PanelVisible := True;
+  Request := Default(TAiTaskRequest);
+  Request.Task := Task;
+  // Text in the prompt box is sent as a remark, e.g. "focus on the joins"
+  Request.UserText := FPanel.PromptText;
+  RunTask(Request);
+end;
+
+procedure TAiController.Explain;
+begin
+  RunEditorTask(atExplain);
+end;
+
+procedure TAiController.Optimize;
+begin
+  RunEditorTask(atOptimize);
+end;
+
+procedure TAiController.FixError;
+var
+  Host: TAiHostState;
+  Conversation: TAiConversation;
+  Request: TAiTaskRequest;
+begin
+  PanelVisible := True;
+  if FTracker.Busy then
+    Exit;
+  Host := CaptureHostState(False);
+  Conversation := FConversations.Find(Host.ConversationKey);
+  Request := Default(TAiTaskRequest);
+  Request.Task := atFixError;
+  Request.UserText := FPanel.PromptText;
+  if Assigned(Conversation) then begin
+    Request.Sql := Conversation.LastErrorSql;
+    Request.ErrorMessage := Conversation.LastErrorMessage;
+  end;
+  // Without a recorded error there is nothing to fix; empty SQL would fall back to the editor
+  if (Request.ErrorMessage = '') or (Trim(Request.Sql) = '') then begin
+    FPanel.SetStatus(_('No failed query to fix in this query tab.'), True);
+    Exit;
+  end;
+  // The schema sent with the fix must be the one the query ran against
+  if (Conversation.LastErrorDatabase <> '') and (Conversation.LastErrorDatabase <> Host.Database) then begin
+    FPanel.SetStatus(f_('The query failed in database "%s". Select that database to fix it.',
+      [Conversation.LastErrorDatabase]), True);
+    Exit;
+  end;
+  RunTask(Request);
+end;
+
+procedure TAiController.PanelFixError(Sender: TObject);
+begin
+  FixError;
+end;
+
+function TAiController.Busy: Boolean;
+begin
+  Result := FTracker.Busy;
+end;
+
+function TAiController.ActiveTabHasQueryError: Boolean;
+var
+  Conversation: TAiConversation;
+begin
+  // Runs on every action update, so only the cheap key lookup
+  Conversation := FConversations.Find(ActiveConversationKey);
+  Result := Assigned(Conversation) and (Conversation.LastErrorMessage <> '');
+end;
+
+procedure TAiController.QueryFinished(TabNumber: Integer; const SessionPath, Database, Sql,
+  ErrorMessage: String; Aborted: Boolean);
+var
+  Key: String;
+  Conversation: TAiConversation;
+begin
+  // A cancelled run is no error to fix; a closed tab needs no record
+  if Aborted or (not QueryTabExists(TabNumber)) then
+    Exit;
+  Key := ConversationKey(TabNumber, SessionPath);
+  if (ErrorMessage <> '') and (Sql <> '') then
+    FConversations.Get(Key).SetQueryError(Sql, ErrorMessage, Database)
+  else if ErrorMessage = '' then begin
+    // A later successful run makes the old error irrelevant
+    Conversation := FConversations.Find(Key);
+    if Assigned(Conversation) then
+      Conversation.SetQueryError('', '', '');
+  end;
+  Refresh;
+end;
+
+procedure TAiController.RunTask(const Request: TAiTaskRequest);
 var
   Host: TAiHostState;
   Conversation: TAiConversation;
@@ -172,9 +298,9 @@ begin
     Conversation := FConversations.Find(Host.ConversationKey);
   try
     if Assigned(Conversation) then
-      Problem := PrepareAiRequest(Host, atGenerate, Text, Conversation.History, Prepared)
+      Problem := PrepareAiRequest(Host, Request, Conversation.History, Prepared)
     else
-      Problem := PrepareAiRequest(Host, atGenerate, Text, nil, Prepared);
+      Problem := PrepareAiRequest(Host, Request, nil, Prepared);
   except
     // E.g. the server failed while reading the schema: report it here instead of a crash dialog
     on E:Exception do
@@ -186,7 +312,7 @@ begin
   end;
 
   Conversation := FConversations.Get(Host.ConversationKey);
-  TurnId := Conversation.StartTurn(atGenerate, Prepared.Title, Prepared.UserMessage,
+  TurnId := Conversation.StartTurn(Request.Task, Prepared.Title, Prepared.UserMessage,
     Prepared.ContextSent);
   FTracker.Start(Host.ConversationKey, TurnId);
   FProfile := Prepared.Profile;
@@ -278,11 +404,21 @@ end;
 procedure TAiController.PanelClear(Sender: TObject);
 var
   Host: TAiHostState;
+  Conversation: TAiConversation;
+  ErrorSql, ErrorMessage, ErrorDatabase: String;
 begin
   Host := CaptureHostState(False);
   if FTracker.BusyForTab(Host.ConversationKey) then
     Exit;
-  FConversations.Drop(Host.ConversationKey);
+  Conversation := FConversations.Find(Host.ConversationKey);
+  if Assigned(Conversation) then begin
+    // Starting over keeps the record of a failed query, which still applies
+    ErrorSql := Conversation.LastErrorSql;
+    ErrorMessage := Conversation.LastErrorMessage;
+    ErrorDatabase := Conversation.LastErrorDatabase;
+    Conversation.Clear;
+    Conversation.SetQueryError(ErrorSql, ErrorMessage, ErrorDatabase);
+  end;
   Refresh;
 end;
 
