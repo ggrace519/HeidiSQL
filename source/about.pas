@@ -117,9 +117,10 @@ begin
   editDonated.Text := AppSettings.ReadString(asDonatedEmail);
 
   // Assign text
-  Caption := f_('About %s', [APPNAME]);
-  lblAppName.Caption := APPNAME;
-  lblAppVersion.Caption := _('Version') + ' ' + Mainform.AppVersion;
+  Caption := f_('About %s', [APPDISPLAYNAME]);
+  lblAppName.Caption := APPDISPLAYNAME;
+  // AI Edition: own version first, then the upstream version it is based on
+  lblAppVersion.Caption := f_('Version %s, based on HeidiSQL %s', [AIEDITIONVERSION, Mainform.AppVersion]);
   lblAppCompiled.Caption := _('Compiled on:') + ' ' + DateTimeToStr(GetFileModTime(Application.ExeName)) + ' with';
   lnklblCompiler.Caption := GetCompilerVersion;
   lnklblCompiler.Hint := 'https://www.lazarus-ide.org/?utm_source='+APPNAME;

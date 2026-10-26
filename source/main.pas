@@ -1481,7 +1481,8 @@ uses
   FileInfo, winpeimagereader, elfreader, machoreader, About, data_sorting, column_selection, loaddata, editvar,
   copytable, csv_detector, exportgrid, usermanager, rolemanagerpg, rolemanagermssql, reformatter, connections, sqlhelp, updatecheck,
   insertfiles, texteditor, preferences, table_editor, view, routine_editor, trigger_editor, event_editor, grideditlinks,
-  crashdialog, selectdbobject;
+  crashdialog, selectdbobject,
+  ai.actions, ai.controller, ai.hostcontext; // AI Edition
 
 {$R *.lfm}
 
@@ -1810,6 +1811,10 @@ begin
   // Destroy dialogs
   FreeAndNil(FSearchReplaceDialog);
 
+  // AI Edition: stop a running request while query tabs and settings still exist
+  if Assigned(AiController) then
+    AiController.Shutdown;
+
   StoreLastSessions;
 
   // Store tab setup for the last time, before tabs are destroyed
@@ -1904,7 +1909,7 @@ begin
     if set in Windows. This animation takes some milliseconds
     to complete and can be annoying.
   }
-  Caption := APPNAME;
+  Caption := APPDISPLAYNAME;
 
   // Load preferred Images into ImageListMain
   PrepareImageList;
@@ -2078,7 +2083,7 @@ begin
   // Force status bar position to below log memo
   StatusBar.Top := SynMemoSQLLog.Top + SynMemoSQLLog.Height;
   actDataShowNext.Hint := f_('Show next %s rows ...', [FormatNumber(AppSettings.ReadInt(asDatagridRowsPerStep))]);
-  actAboutBox.Caption := f_('About %s', [APPNAME+' '+FAppVersion]);
+  actAboutBox.Caption := f_('About %s', [APPDISPLAYNAME+' '+FAppVersion]);
   // Activate logging
   LogToFile := AppSettings.ReadBool(asLogToFile);
   if AppSettings.ReadBool(asLogHorizontalScrollbar) then
@@ -2106,6 +2111,9 @@ begin
     menuAutoExpand.Click;
   if AppSettings.ReadBool(asDoubleClickInsertsNodeText) then
     menuDoubleClickInsertsNodeText.Click;
+
+  // AI Edition: assistant panel and actions, before shortcuts and captions are recorded below
+  InitAiAssistant(Self);
 
   // Make exit action OS friendly
   {$IFDEF UNIX}
@@ -2280,7 +2288,7 @@ begin
   btnDonate.Visible := HasDonated(True) <> nbTrue;
 
   // Call user statistics if checked in settings
-  if AppSettings.ReadBool(asDoUsageStatistics) then begin
+  if REPORTUSAGESTATISTICS and AppSettings.ReadBool(asDoUsageStatistics) then begin
     LastStatsCall := StrToDateTimeDef(AppSettings.ReadString(asLastUsageStatisticCall), DateTimeNever);
     if DaysBetween(Now, LastStatsCall) >= 30 then begin
       // Report used app version, bits.
@@ -3501,6 +3509,12 @@ var
 begin
   // Find right query tab
   Tab := QueryTabs.TabByNumber(Thread.TabNumber);
+
+  // AI Edition: remember a failed statement for "Fix error", or forget it after a success.
+  // Before the modal error dialog, while the connection is certainly still there.
+  if Assigned(AiController) then
+    AiController.QueryFinished(Thread.TabNumber, Thread.Connection.Parameters.SessionPath,
+      Thread.Connection.Database, FailedStatementSql(Thread), Thread.ErrorMessage, Thread.Aborted);
 
   // Error handling
   if not Thread.ErrorMessage.IsEmpty then begin
@@ -6627,6 +6641,9 @@ begin
   // Ensure controls are in a valid state
   ValidateControls(Sender);
   FixQueryTabCloseButtons;
+  // AI Edition: show the conversation of the new tab
+  if Assigned(AiController) then
+    AiController.Refresh;
 end;
 
 
@@ -10202,6 +10219,9 @@ begin
   DBTree.InvalidateColumn(0);
   FixQueryTabCloseButtons;
   SetWindowCaption;
+  // AI Edition: the assistant needs a selected database
+  if Assigned(AiController) then
+    AiController.Refresh;
 end;
 
 
@@ -13160,6 +13180,9 @@ begin
     Dec(NewPageIndex);
   // Avoid excessive flicker:
   //LockWindowUpdate(PageControlMain.Handle);
+  // AI Edition: stop a request of this tab and forget its conversation
+  if Assigned(AiController) then
+    AiController.QueryTabClosed(QueryTabs[PageIndex-tabQuery.PageIndex].Number);
   PageControlMain.Pages[PageIndex].Free;
   QueryTabs.Delete(PageIndex-tabQuery.PageIndex);
   PageControlMain.ActivePageIndex := NewPageIndex;
@@ -13622,7 +13645,7 @@ var
   Cap: String;
 begin
   // Set window caption and taskbar text
-  Cap := DBtree.Path(DBtree.FocusedNode, 0, ttStatic, '\') + ' - ' + APPNAME;
+  Cap := DBtree.Path(DBtree.FocusedNode, 0, ttStatic, '\') + ' - ' + APPDISPLAYNAME;
   if AppSettings.PortableMode then
     Cap := Cap + ' Portable';
   Cap := Cap + ' ' + FAppVersion;

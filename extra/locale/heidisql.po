@@ -6904,6 +6904,257 @@ msgstr "The UPDATE affected %s rows, but 1 was expected. On tables without a pri
 msgid "The DELETE affected %s rows, but 1 was expected. On tables without a primary or unique key, HeidiSQL must match on all columns, so edits may not reliably target the intended row."
 msgstr "The DELETE affected %s rows, but 1 was expected. On tables without a primary or unique key, HeidiSQL must match on all columns, so edits may not reliably target the intended row."
 
+msgid "Copy settings from HeidiSQL?"
+msgstr "Copy settings from HeidiSQL?"
+
+msgid "This is the first start of %s. A standard HeidiSQL installation was found on this computer, with settings in:"
+msgstr "This is the first start of %s. A standard HeidiSQL installation was found on this computer, with settings in:"
+
+msgid "Copy its sessions, preferences, snippets and query backups into this edition? The original settings are not changed."
+msgstr "Copy its sessions, preferences, snippets and query backups into this edition? The original settings are not changed."
+
+msgid "Copying settings failed: %s"
+msgstr "Copying settings failed: %s"
+
+msgid "Downloading release list"
+msgstr "Downloading release list"
+
+msgid "AI Edition release"
+msgstr "AI Edition release"
+
+msgid "No AI Edition release has been published yet."
+msgstr "No AI Edition release has been published yet."
+
+msgid "Download version %s"
+msgstr "Download version %s"
+
+msgid "Version %s, based on HeidiSQL %s"
+msgstr "Version %s, based on HeidiSQL %s"
+
+msgid "Use this profile for sessions that do not choose one"
+msgstr "Use this profile for sessions that do not choose one"
+
+msgid "Base URL:"
+msgstr "Base URL:"
+
+msgid "Model:"
+msgstr "Model:"
+
+msgid "Test"
+msgstr "Test"
+
+msgid "Connect to the server and list its models"
+msgstr "Connect to the server and list its models"
+
+msgid "Environment variable"
+msgstr "Environment variable"
+
+msgid "Keychain entry"
+msgstr "Keychain entry"
+
+msgid "API key:"
+msgstr "API key:"
+
+msgid "Variable or entry name:"
+msgstr "Variable or entry name:"
+
+msgid "Store key..."
+msgstr "Store key..."
+
+msgid "Remove key"
+msgstr "Remove key"
+
+msgid "Key status:"
+msgstr "Key status:"
+
+msgid "Temperature:"
+msgstr "Temperature:"
+
+msgid "Schema context (characters):"
+msgstr "Schema context (characters):"
+
+msgid "Read timeout (seconds):"
+msgstr "Read timeout (seconds):"
+
+msgid "Accept untrusted HTTPS certificates (self-signed servers only)"
+msgstr "Accept untrusted HTTPS certificates (self-signed servers only)"
+
+msgid "Extra CA file:"
+msgstr "Extra CA file:"
+
+msgid "(unnamed)"
+msgstr "(unnamed)"
+
+msgid "New provider"
+msgstr "New provider"
+
+msgid "Remove the provider \"%s\"? Sessions using it will ask for another provider."
+msgstr "Remove the provider \"%s\"? Sessions using it will ask for another provider."
+
+msgid "Connecting..."
+msgstr "Connecting..."
+
+msgid "Enter a name for the keychain entry first."
+msgstr "Enter a name for the keychain entry first."
+
+msgid "Run this command in Terminal, which then asks for the key. It was copied to the clipboard:"
+msgstr "Run this command in Terminal, which then asks for the key. It was copied to the clipboard:"
+
+msgid "Store key"
+msgstr "Store key"
+
+msgid "API key for \"%s\":"
+msgstr "API key for \"%s\":"
+
+msgid "Remove the keychain entry \"%s\"?"
+msgstr "Remove the keychain entry \"%s\"?"
+
+msgid "%s cannot be read as profiles. Fix or delete the file; it is not overwritten."
+msgstr "%s cannot be read as profiles. Fix or delete the file; it is not overwritten."
+
+msgid "%s cannot be opened."
+msgstr "%s cannot be opened."
+
+msgid "%s was written by a newer version and is shown read-only."
+msgstr "%s was written by a newer version and is shown read-only."
+
+msgid "Saving the AI providers failed: %s"
+msgstr "Saving the AI providers failed: %s"
+
+msgid "No API key is used"
+msgstr "No API key is used"
+
+msgid "Key found in environment variable %s"
+msgstr "Key found in environment variable %s"
+
+msgid "Key found in keychain entry \"%s\""
+msgstr "Key found in keychain entry \"%s\""
+
+msgid "Environment variable %s is not set. Programs started from the desktop menu may not see variables from a shell profile."
+msgstr "Environment variable %s is not set. Programs started from the desktop menu may not see variables from a shell profile."
+
+msgid "No keychain entry \"%s\" yet. Use \"Store key\"."
+msgstr "No keychain entry \"%s\" yet. Use \"Store key\"."
+
+msgid "The keychain of this system is not available"
+msgstr "The keychain of this system is not available"
+
+msgid "The keychain refused access"
+msgstr "The keychain refused access"
+
+msgid "The server rejected the API key."
+msgstr "The server rejected the API key."
+
+msgid "Not found: check that the base URL ends with /v1 and that the model \"%s\" exists."
+msgstr "Not found: check that the base URL ends with /v1 and that the model \"%s\" exists."
+
+msgid "The server did not accept the request."
+msgstr "The server did not accept the request."
+
+msgid "Too many requests: the provider is rate limiting. Try again later."
+msgstr "Too many requests: the provider is rate limiting. Try again later."
+
+msgid "The server reported an error."
+msgstr "The server reported an error."
+
+msgid "Cannot connect to %s."
+msgstr "Cannot connect to %s."
+
+msgid "No answer in time. Local models may need a longer timeout for large requests."
+msgstr "No answer in time. Local models may need a longer timeout for large requests."
+
+msgid "Cancelled."
+msgstr "Cancelled."
+
+msgid "The answer could not be understood."
+msgstr "The answer could not be understood."
+
+msgid "Enter a name."
+msgstr "Enter a name."
+
+msgid "The base URL must start with http:// or https://."
+msgstr "The base URL must start with http:// or https://."
+
+msgid "Enter or select a model."
+msgstr "Enter or select a model."
+
+msgid "Enter the name of the environment variable or keychain entry."
+msgstr "Enter the name of the environment variable or keychain entry."
+
+msgid "The context size must be between 1000 and 1000000 characters."
+msgstr "The context size must be between 1000 and 1000000 characters."
+
+msgid "The timeout must be between 5 and 3600 seconds."
+msgstr "The timeout must be between 5 and 3600 seconds."
+
+msgid "The CA file does not exist."
+msgstr "The CA file does not exist."
+
+msgid "Connected, but the server listed no models."
+msgstr "Connected, but the server listed no models."
+
+msgid "Connected: %d models available."
+msgstr "Connected: %d models available."
+
+msgid "Local Ollama"
+msgstr "Local Ollama"
+
+msgid "AI providers"
+msgstr "AI providers"
+
+msgid "Look the key up in the keychain"
+msgstr "Look the key up in the keychain"
+
+msgid "Keychain entry \"%s\", not checked yet."
+msgstr "Keychain entry \"%s\", not checked yet."
+
+msgid "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
+msgstr "Its keychain entry \"%s\" is kept; use \"Remove key\" first to delete it."
+
+msgid "Enable AI assistant for this session"
+msgstr "Enable AI assistant for this session"
+
+msgid "Provider:"
+msgstr "Provider:"
+
+msgid "Manage..."
+msgstr "Manage..."
+
+msgid "Edit AI providers in the preferences"
+msgstr "Edit AI providers in the preferences"
+
+msgid "Sent to the provider with each request: table and column names, types, keys, comments, approximate row counts, the notes below, and the SQL or question you ask about. No table data."
+msgstr "Sent to the provider with each request: table and column names, types, keys, comments, approximate row counts, the notes below, and the SQL or question you ask about. No table data."
+
+msgid "Shared data:"
+msgstr "Shared data:"
+
+msgid "What the model cannot see in the schema, e.g. \"Amounts are in cents. Soft-deleted rows have deleted_at set.\""
+msgstr "What the model cannot see in the schema, e.g. \"Amounts are in cents. Soft-deleted rows have deleted_at set.\""
+
+msgid "Context notes:"
+msgstr "Context notes:"
+
+msgid "Default provider (none defined yet)"
+msgstr "Default provider (none defined yet)"
+
+msgid "Default provider (%s)"
+msgstr "Default provider (%s)"
+
+msgid "The provider chosen for this session was removed. Choose another one."
+msgstr "The provider chosen for this session was removed. Choose another one."
+
+msgid "No AI provider is defined yet. Use \"Manage...\" to add one."
+msgstr "No AI provider is defined yet. Use \"Manage...\" to add one."
+
+msgid "The provider \"%s\" is incomplete. Use \"Manage...\" to fix it."
+msgstr "The provider \"%s\" is incomplete. Use \"Manage...\" to fix it."
+
+msgid "LLM Settings"
+msgstr "LLM Settings"
+
+msgid "(removed provider)"
+msgstr "(removed provider)"
 msgid "Variables in MS SQL only exist within the batch they are declared in. Your queries were sent one by one. Activate \"%s\" in the drop-down menu of the Run button to send them as one batch."
 msgstr "Variables in MS SQL only exist within the batch they are declared in. Your queries were sent one by one. Activate \"%s\" in the drop-down menu of the Run button to send them as one batch."
 
@@ -7077,3 +7328,156 @@ msgstr "Windows"
 
 msgid "Windows group"
 msgstr "Windows group"
+
+msgid "Insert the SQL at the cursor of the query editor. It is not executed."
+msgstr "Insert the SQL at the cursor of the query editor. It is not executed."
+
+msgid "Replace the whole query editor text with the SQL. It is not executed."
+msgstr "Replace the whole query editor text with the SQL. It is not executed."
+
+msgid "Context sent..."
+msgstr "Context sent..."
+
+msgid "Show exactly what was sent to the AI provider with the last question"
+msgstr "Show exactly what was sent to the AI provider with the last question"
+
+msgid "The answer contains several SQL blocks. Choose the one to insert or copy."
+msgstr "The answer contains several SQL blocks. Choose the one to insert or copy."
+
+msgid "Describe the query you need, e.g. \"Customers without orders in 2024\""
+msgstr "Describe the query you need, e.g. \"Customers without orders in 2024\""
+
+msgid "Send the question to the AI provider (Ctrl+Enter)"
+msgstr "Send the question to the AI provider (Ctrl+Enter)"
+
+msgid "Start a new conversation in this query tab"
+msgstr "Start a new conversation in this query tab"
+
+msgid "Thinking..."
+msgstr "Thinking..."
+
+msgid "Waiting for the answer..."
+msgstr "Waiting for the answer..."
+
+msgid "The answer was empty."
+msgstr "The answer was empty."
+
+msgid "Error: %s"
+msgstr "Error: %s"
+
+msgid "Block %d: %s"
+msgstr "Block %d: %s"
+
+msgid "Changes the database structure (DDL). Review it before running."
+msgstr "Changes the database structure (DDL). Review it before running."
+
+msgid "Changes data (DML). Review it before running."
+msgstr "Changes data (DML). Review it before running."
+
+msgid "Context sent to the AI provider"
+msgstr "Context sent to the AI provider"
+
+msgid "Open a query tab to use the AI assistant."
+msgstr "Open a query tab to use the AI assistant."
+
+msgid "Connect to a database to use the AI assistant."
+msgstr "Connect to a database to use the AI assistant."
+
+msgid "Another query tab is waiting for an answer."
+msgstr "Another query tab is waiting for an answer."
+
+msgid "Select a database in the tree first. Its tables and columns are sent with the question."
+msgstr "Select a database in the tree first. Its tables and columns are sent with the question."
+
+msgid "Session \"%s\", database \"%s\""
+msgstr "Session \"%s\", database \"%s\""
+
+msgid "A query is running, so only the schema already loaded was sent."
+msgstr "A query is running, so only the schema already loaded was sent."
+
+msgid "Asking %s (%s)..."
+msgstr "Asking %s (%s)..."
+
+msgid "Open a query tab first."
+msgstr "Open a query tab first."
+
+msgid "Generate SQL with AI..."
+msgstr "Generate SQL with AI..."
+
+msgid "Describe a query in your own words and let the AI assistant write the SQL"
+msgstr "Describe a query in your own words and let the AI assistant write the SQL"
+
+msgid "AI assistant panel"
+msgstr "AI assistant panel"
+
+msgid "Show or hide the AI assistant panel"
+msgstr "Show or hide the AI assistant panel"
+
+msgid "No AI provider is set up yet. Add one in Preferences, tab \"AI providers\"."
+msgstr "No AI provider is set up yet. Add one in Preferences, tab \"AI providers\"."
+
+msgid "The AI provider of this session was removed. Choose another one in the session manager, tab \"LLM Settings\"."
+msgstr "The AI provider of this session was removed. Choose another one in the session manager, tab \"LLM Settings\"."
+
+msgid "The AI provider \"%s\" is not complete. Fix it in Preferences, tab \"AI providers\":"
+msgstr "The AI provider \"%s\" is not complete. Fix it in Preferences, tab \"AI providers\":"
+
+msgid "Connect to a database first."
+msgstr "Connect to a database first."
+
+msgid "Save the session to use the AI assistant with it."
+msgstr "Save the session to use the AI assistant with it."
+
+msgid "The AI assistant is off for session \"%s\". Turn it on in the session manager, tab \"LLM Settings\"."
+msgstr "The AI assistant is off for session \"%s\". Turn it on in the session manager, tab \"LLM Settings\"."
+
+msgid "Type a question first."
+msgstr "Type a question first."
+
+msgid "Fix error"
+msgstr "Fix error"
+
+msgid "Ask the AI provider to correct the failed query. The fix is not executed."
+msgstr "Ask the AI provider to correct the failed query. The fix is not executed."
+
+msgid "Last query failed: %s"
+msgstr "Last query failed: %s"
+
+msgid "No failed query to fix in this query tab."
+msgstr "No failed query to fix in this query tab."
+
+msgid "Explain query with AI"
+msgstr "Explain query with AI"
+
+msgid "Let the AI assistant explain the selected SQL, or the whole editor text"
+msgstr "Let the AI assistant explain the selected SQL, or the whole editor text"
+
+msgid "Optimize query with AI"
+msgstr "Optimize query with AI"
+
+msgid "Let the AI assistant suggest a faster version of the selected SQL and indexes for it"
+msgstr "Let the AI assistant suggest a faster version of the selected SQL and indexes for it"
+
+msgid "Fix error with AI"
+msgstr "Fix error with AI"
+
+msgid "Let the AI assistant correct the last failed query of this tab"
+msgstr "Let the AI assistant correct the last failed query of this tab"
+
+msgid "Explain: %s"
+msgstr "Explain: %s"
+
+msgid "Optimize: %s"
+msgstr "Optimize: %s"
+
+msgid "Fix error: %s"
+msgstr "Fix error: %s"
+
+msgid "The query editor is empty. Write or select the SQL first."
+msgstr "The query editor is empty. Write or select the SQL first."
+
+msgid "The SQL is too long to send. Select the statement to work on first."
+msgstr "The SQL is too long to send. Select the statement to work on first."
+
+msgid "The query failed in database \"%s\". Select that database to fix it."
+msgstr "The query failed in database \"%s\". Select that database to fix it."

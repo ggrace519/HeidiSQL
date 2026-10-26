@@ -120,6 +120,7 @@ type
     FStopOnErrors: Boolean;
     FAborted: Boolean;
     FErrorMessage: String;
+    FErrorBatchFrom, FErrorBatchTo: Integer; // AI Edition: statements behind FErrorMessage, -1 if none
     FBatchPosition: Integer;
     FQueriesInPacket: Integer;
     FQueryStartedAt: TDateTime;
@@ -148,6 +149,8 @@ type
     property WarningCount: Int64 read FWarningCount;
     property Aborted: Boolean read FAborted write FAborted;
     property ErrorMessage: String read FErrorMessage;
+    property ErrorBatchFrom: Integer read FErrorBatchFrom;
+    property ErrorBatchTo: Integer read FErrorBatchTo;
     property BatchInOneGo: Boolean read FBatchInOneGo;
     constructor Create(Connection: TDBConnection; Batch: TSQLBatch; TabNumber: Integer);
     procedure Execute; override;
@@ -242,6 +245,8 @@ type
     asSequalSuggestWindowWidth, asSequalSuggestWindowHeight, asSequalSuggestPrompt, asSequalSuggestRecentPrompts,
     asReformatter, asReformatterNoDialog, asAlwaysGenerateFilter, asDisplayReverseForeignKeys,
     asGenerateDataNumRows, asGenerateDataNullAmount, asWebOnceAction, asDisplayLogPanel, asDisplayTreeFilters,
+    // AI Edition, per session
+    asAiEnabled, asAiProfileId, asAiContextNotes, asAiPanelVisible, asAiPanelWidth,
     asUnused);
   TAppSetting = record
     Name: String;
@@ -464,7 +469,7 @@ var
 
 implementation
 
-uses main
+uses main, forkpaths
 {$if defined(LINUX) and (defined(LCLQt5) or defined(LCLQt6))}
   , platformtheme
 {$endif};
@@ -3138,6 +3143,8 @@ begin
   FRowsFound := 0;
   FWarningCount := 0;
   FErrorMessage := '';
+  FErrorBatchFrom := -1;
+  FErrorBatchTo := -1;
   FBatchInOneGo := MainForm.actBatchInOneGo.Checked;
   FStopOnErrors := MainForm.actQueryStopOnErrors.Checked;
   FreeOnTerminate := True;
@@ -3148,7 +3155,7 @@ end;
 procedure TQueryThread.Execute;
 var
   SQL: String;
-  i, BatchStartOffset, ResultCount: Integer;
+  i, BatchStartOffset, ResultCount, RunStart: Integer;
   PacketSize, MaxAllowedPacket: Int64;
   DoStoreResult, ErrorAborted, LogMaxResultsDone: Boolean;
 begin
@@ -3160,6 +3167,7 @@ begin
 
   while i < FBatch.Count do begin
     SQL := '';
+    RunStart := i;
     if not FBatchInOneGo then begin
       SQL := FBatch[i].SQL;
       Inc(i);
@@ -3212,6 +3220,8 @@ begin
       on E:EDbError do begin
         if FStopOnErrors or (i = FBatch.Count) then begin
           FErrorMessage := E.Message;
+          FErrorBatchFrom := RunStart;
+          FErrorBatchTo := i-1;
           ErrorAborted := True;
         end;
       end;
@@ -3222,7 +3232,10 @@ begin
     except
       // Synchronize re-raises here. Without BatchFinished, the tab would stay in running state forever.
       on E:Exception do begin
+        // Not an SQL error, and it replaces any earlier message: no statement to blame
         FErrorMessage := E.Message;
+        FErrorBatchFrom := -1;
+        FErrorBatchTo := -1;
         ErrorAborted := True;
       end;
     end;
@@ -3975,6 +3988,13 @@ begin
   InitSetting(asDisplayObjectSizeColumn,          'DisplayObjectSizeColumn',               0, True);
   InitSetting(asDisplayLogPanel,                  'DisplayLogPanel',                       0, True);
   InitSetting(asDisplayTreeFilters,               'DisplayTreeFilters',                    0, True);
+  // AI Edition, per session: off by default, so nothing is sent unless enabled for a session
+  InitSetting(asAiEnabled,                        'AiEnabled',                             0, False, '', True);
+  InitSetting(asAiProfileId,                      'AiProfileId',                           0, False, '', True);
+  InitSetting(asAiContextNotes,                   'AiContextNotes',                        0, False, '', True);
+  // AI Edition, assistant panel in the main window
+  InitSetting(asAiPanelVisible,                   'AiPanelVisible',                        0, False);
+  InitSetting(asAiPanelWidth,                     'AiPanelWidth',                          360);
   InitSetting(asActionShortcut1,                  'Shortcut1_%s',                          0);
   InitSetting(asActionShortcut2,                  'Shortcut2_%s',                          0);
   InitSetting(asHighlighterForeground,            'SQL Attr %s Foreground',                0);
@@ -4646,8 +4666,8 @@ begin
     else begin
       // GetAppConfigDir returns "/home/rick/.config/heidisql" only in a very early state.
       // Later it takes the main form's caption into its folder name! Probably only before I created GetApplicationName.
-      FDirnameUserAppData := GetAppConfigDir(False);
-      FDirnameUserAppData := IncludeTrailingPathDelimiter(FDirnameUserAppData);
+      // AI Edition: use a sibling folder of the stock one, so both editions can coexist.
+      FDirnameUserAppData := ForkConfigDir;
     end;
   end;
   Result := FDirnameUserAppData;
