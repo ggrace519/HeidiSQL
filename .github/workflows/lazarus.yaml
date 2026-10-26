@@ -522,7 +522,8 @@ jobs:
 
     # AI Edition: releases are made only from "ai-v<version>" tags (see DECISIONS.md, ADR-009).
     # Mirrored upstream tags (v12.x) must not publish a release. No .deb/.rpm packages: they
-    # would install over a stock HeidiSQL package of the same name.
+    # would install over a stock HeidiSQL package of the same name. No macOS app: the bundle job
+    # signs and notarizes with upstream's certificates and only runs in HeidiSQL/HeidiSQL.
     release:
         if: github.ref_type == 'tag' && startsWith(github.ref_name, 'ai-v')
         env:
@@ -530,7 +531,7 @@ jobs:
 
         name: Create GitHub Release
         runs-on: [ubuntu-latest]
-        needs: [build, build-qt6arm, build-macos-app]
+        needs: [build, build-qt6arm]
 
         steps:
             - name: Checkout source code
@@ -569,14 +570,6 @@ jobs:
               with:
                 name: ubuntu-24.04-arm-QT6
                 path: out/qt6arm
-            - name: Download macOS app bundle
-              uses: actions/download-artifact@v7
-              with:
-                name: macos-app-bundle
-                path: dist
-            - name: Rename macOS app bundle for release
-              run: mv dist/heidisql-macos-app.zip "dist/heidisql-ai_${version}_macos_app.zip"
-
             - name: List files
               run: |
                 ls -alF out/gtk2
