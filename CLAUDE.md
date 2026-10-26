@@ -26,6 +26,9 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 - `lazarus` = released branch, where upstream is merged in. `develop` = integration branch.
 - Feature branches `<type>/<kebab-summary>` from `develop`. PRs target `develop`; promotion
   `develop` → `lazarus` is a merge commit PR, never squash.
+- Releases: bump `AIEDITIONVERSION` in `source/const.inc`, move `CHANGELOG-AI.md` `[Unreleased]`
+  to a `[<version>] - <date>` section, promote, then tag `ai-v<version>` on `lazarus`. CI publishes
+  the release from that tag only (ADR-009); other tags publish nothing.
 
 ## Code rules
 - New logic goes into new, small, single-purpose units. `main.pas` (16k lines), `apphelpers.pas`
