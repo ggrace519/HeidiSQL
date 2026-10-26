@@ -1,14 +1,16 @@
 # HeidiSQL Lazarus/FreePascal port
 
 > **HeidiSQL AI Edition** — this fork adds an AI assistant for writing and understanding SQL.
-> See [AI-EDITION.md](AI-EDITION.md) for what differs from stock HeidiSQL.
-[![Build Status](https://github.com/HeidiSQL/HeidiSQL/actions/workflows/lazarus.yaml/badge.svg?branch=lazarus)](https://github.com/HeidiSQL/HeidiSQL/actions)
-[![Supports Windows](https://img.shields.io/badge/support-Windows-blue?logo=Windows)](https://github.com/HeidiSQL/HeidiSQL/releases/latest)
-[![Supports Linux](https://img.shields.io/badge/support-Linux-yellow?logo=Linux)](https://github.com/HeidiSQL/HeidiSQL/releases/latest)
-[![Supports macOS](https://img.shields.io/badge/support-macOS-black?logo=macOS)](https://github.com/HeidiSQL/HeidiSQL/releases/latest)
-[![License](https://img.shields.io/github/license/HeidiSQL/HeidiSQL?logo=github)](https://github.com/HeidiSQL/HeidiSQL/blob/main/LICENSE)
-[![Latest Release](https://img.shields.io/github/v/release/HeidiSQL/HeidiSQL?label=latest%20release&logo=github)](https://github.com/HeidiSQL/HeidiSQL/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/HeidiSQL/HeidiSQL/total?logo=github)](https://github.com/HeidiSQL/HeidiSQL/releases)
+> See [AI-EDITION.md](AI-EDITION.md) for what differs from stock HeidiSQL, how to install it, and how
+> to use the assistant. Linux archives are on the [releases page](https://github.com/ggrace519/HeidiSQL/releases/latest).
+
+[![Build Status](https://github.com/ggrace519/HeidiSQL/actions/workflows/lazarus.yaml/badge.svg?branch=lazarus)](https://github.com/ggrace519/HeidiSQL/actions/workflows/lazarus.yaml?query=branch%3Alazarus)
+[![Latest Release](https://img.shields.io/github/v/release/ggrace519/HeidiSQL?label=latest%20release&logo=github)](https://github.com/ggrace519/HeidiSQL/releases/latest)
+[![Linux release](https://img.shields.io/badge/release-Linux-yellow?logo=Linux)](https://github.com/ggrace519/HeidiSQL/releases/latest)
+[![Windows from source](https://img.shields.io/badge/from%20source-Windows-blue?logo=Windows)](#building)
+[![macOS from source](https://img.shields.io/badge/from%20source-macOS-black?logo=macOS)](#building)
+[![License](https://img.shields.io/github/license/ggrace519/HeidiSQL?logo=github)](https://github.com/ggrace519/HeidiSQL/blob/lazarus/LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/ggrace519/HeidiSQL/total?logo=github)](https://github.com/ggrace519/HeidiSQL/releases)
 
 
 This is the code base for compiling HeidiSQL on Linux and macOS. From v13 onwards, the Windows version

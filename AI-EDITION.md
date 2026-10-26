@@ -119,6 +119,19 @@ their foreign key neighbours are sent with their columns; other tables only by n
 provider's context size. While a query is running, only schema data that is already loaded is
 sent.
 
+## Installing
+
+Releases contain Linux archives only (GTK2, Qt5, Qt6, and Qt6 for ARM64), on the
+[releases page](https://github.com/ggrace519/HeidiSQL/releases/latest). Windows and macOS users
+build from source (see below). The archive has no top folder, so unpack it into its own folder:
+
+```sh
+mkdir heidisql-ai && tar xzf heidisql-ai_0.1.0_linux_gtk2.tgz -C heidisql-ai
+./heidisql-ai/heidisql
+```
+
+The Qt variants need the Qt5Pas or Qt6Pas library of your distribution.
+
 ## Building
 
 ```sh
