@@ -4,6 +4,10 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 
 ## [Unreleased]
 
+### Docs
+- README badges now show this fork's build, release, license and downloads instead of upstream's, and
+  AI-EDITION.md explains how to install the Linux release archives.
+
 ## [0.1.0] - 2026-10-26
 
 First release of the AI Edition.
