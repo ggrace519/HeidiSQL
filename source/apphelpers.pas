@@ -120,6 +120,7 @@ type
     FStopOnErrors: Boolean;
     FAborted: Boolean;
     FErrorMessage: String;
+    FErrorBatchFrom, FErrorBatchTo: Integer; // AI Edition: statements behind FErrorMessage, -1 if none
     FBatchPosition: Integer;
     FQueriesInPacket: Integer;
     FQueryStartedAt: TDateTime;
@@ -148,6 +149,8 @@ type
     property WarningCount: Int64 read FWarningCount;
     property Aborted: Boolean read FAborted write FAborted;
     property ErrorMessage: String read FErrorMessage;
+    property ErrorBatchFrom: Integer read FErrorBatchFrom;
+    property ErrorBatchTo: Integer read FErrorBatchTo;
     property BatchInOneGo: Boolean read FBatchInOneGo;
     constructor Create(Connection: TDBConnection; Batch: TSQLBatch; TabNumber: Integer);
     procedure Execute; override;
@@ -3140,6 +3143,8 @@ begin
   FRowsFound := 0;
   FWarningCount := 0;
   FErrorMessage := '';
+  FErrorBatchFrom := -1;
+  FErrorBatchTo := -1;
   FBatchInOneGo := MainForm.actBatchInOneGo.Checked;
   FStopOnErrors := MainForm.actQueryStopOnErrors.Checked;
   FreeOnTerminate := True;
@@ -3150,7 +3155,7 @@ end;
 procedure TQueryThread.Execute;
 var
   SQL: String;
-  i, BatchStartOffset, ResultCount: Integer;
+  i, BatchStartOffset, ResultCount, RunStart: Integer;
   PacketSize, MaxAllowedPacket: Int64;
   DoStoreResult, ErrorAborted, LogMaxResultsDone: Boolean;
 begin
@@ -3162,6 +3167,7 @@ begin
 
   while i < FBatch.Count do begin
     SQL := '';
+    RunStart := i;
     if not FBatchInOneGo then begin
       SQL := FBatch[i].SQL;
       Inc(i);
@@ -3214,6 +3220,8 @@ begin
       on E:EDbError do begin
         if FStopOnErrors or (i = FBatch.Count) then begin
           FErrorMessage := E.Message;
+          FErrorBatchFrom := RunStart;
+          FErrorBatchTo := i-1;
           ErrorAborted := True;
         end;
       end;
@@ -3224,7 +3232,10 @@ begin
     except
       // Synchronize re-raises here. Without BatchFinished, the tab would stay in running state forever.
       on E:Exception do begin
+        // Not an SQL error, and it replaces any earlier message: no statement to blame
         FErrorMessage := E.Message;
+        FErrorBatchFrom := -1;
+        FErrorBatchTo := -1;
         ErrorAborted := True;
       end;
     end;

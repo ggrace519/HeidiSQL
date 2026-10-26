@@ -22,26 +22,32 @@ type
     Database: String;
     ActiveObject: String;      // Selected table or view in the database tree
     Sql: String;               // Selected text or the whole editor text, only with WithSql
+    SqlTruncated: Boolean;     // Sql was cut at MAXSQLCHARS
+    // A query tab is running a batch on the connection. Between two statements the connection is
+    // briefly unlocked, so IsLockedByThread alone is not enough to know it is safe to use.
+    ConnectionBusy: Boolean;
     Dialect: String;           // e.g. "MySQL 8.0.35"
   end;
 
 // WithSql also reads the editor text, which can be large; only needed when sending
 function CaptureHostState(WithSql: Boolean): TAiHostState;
 function QueryTabExists(TabNumber: Integer): Boolean;
+// Conversation key of the active query tab, '' without one. Cheap enough for action updates.
+function ActiveConversationKey: String;
 // Puts Sql into the editor of the given tab, at the cursor (replacing a selection) or replacing
 // the whole text. Never runs it. Returns False when the tab no longer exists.
 function PutSqlIntoQueryTab(TabNumber: Integer; const Sql: String; ReplaceAll: Boolean): Boolean;
-// SQL of the statement that failed in a finished query thread, '' without an error. With "send
-// batch in one go", the server ran a whole packet, so all of its statements are returned.
+// SQL of the statement that failed in a finished query thread, '' without an SQL error. With
+// "send batch in one go", the server ran a whole packet, so all of its statements are returned.
 function FailedStatementSql(Thread: TQueryThread): String;
 
 implementation
 
 uses
-  Classes, Math, SynEdit, main, ai.conversations;
+  Classes, SynEdit, main, ai.conversations;
 
 const
-  // Only the start of a huge editor text is scanned for table names
+  // Larger editor texts are not sent; see TAiHostState.SqlTruncated
   MAXSQLCHARS = 100000;
 
 function FindTab(TabNumber: Integer): TQueryTab;
@@ -49,6 +55,34 @@ begin
   Result := nil;
   if (TabNumber > 0) and Assigned(MainForm) then
     Result := MainForm.QueryTabs.TabByNumber(TabNumber);
+end;
+
+function ConnectionRunsQuery(Conn: TDBConnection): Boolean;
+var
+  Tab: TQueryTab;
+begin
+  Result := Conn.IsLockedByThread;
+  for Tab in MainForm.QueryTabs do begin
+    if Result then
+      Break;
+    // ExecutionThread frees itself and is not reset, so check QueryRunning first
+    Result := Tab.QueryRunning and Assigned(Tab.ExecutionThread)
+      and (Tab.ExecutionThread.Connection = Conn);
+  end;
+end;
+
+function ActiveConversationKey: String;
+var
+  Conn: TDBConnection;
+begin
+  Result := '';
+  if (MainForm = nil) or (csDestroying in MainForm.ComponentState)
+    or (not MainForm.QueryTabs.HasActiveTab) then
+    Exit;
+  Conn := MainForm.ActiveConnection;
+  if Conn = nil then
+    Exit;
+  Result := ConversationKey(MainForm.QueryTabs.ActiveTab.Number, Conn.Parameters.SessionPath);
 end;
 
 function SessionSaved(const Path: String): Boolean;
@@ -74,6 +108,7 @@ begin
         Result.Sql := Tab.Memo.SelText
       else
         Result.Sql := Tab.Memo.Text;
+      Result.SqlTruncated := Length(Result.Sql) > MAXSQLCHARS;
       Result.Sql := Copy(Result.Sql, 1, MAXSQLCHARS);
     end;
   end;
@@ -82,6 +117,7 @@ begin
   if Conn = nil then
     Exit;
   Result.Connection := Conn;
+  Result.ConnectionBusy := ConnectionRunsQuery(Conn);
   Result.SessionName := Conn.Parameters.SessionName;
   if SessionSaved(Conn.Parameters.SessionPath) then
     Result.SessionPath := Conn.Parameters.SessionPath;
@@ -125,20 +161,18 @@ end;
 
 function FailedStatementSql(Thread: TQueryThread): String;
 var
-  i, Last: Integer;
+  i: Integer;
 begin
   Result := '';
-  if (Thread.ErrorMessage = '') or (Thread.BatchPosition >= Thread.Batch.Count) then
+  // The thread records which statements the server rejected; other errors have no range
+  if (Thread.ErrorMessage = '') or (Thread.ErrorBatchFrom < 0)
+    or (Thread.ErrorBatchTo >= Thread.Batch.Count) then
     Exit;
-  Last := Thread.BatchPosition;
-  if Thread.BatchInOneGo then
-    Last := Min(Thread.Batch.Count, Thread.BatchPosition + Max(1, Thread.QueriesInPacket)) - 1;
-  for i:=Thread.BatchPosition to Last do begin
+  for i:=Thread.ErrorBatchFrom to Thread.ErrorBatchTo do begin
     if Result <> '' then
       Result := Result + ';' + sLineBreak;
     Result := Result + Thread.Batch[i].SQL;
   end;
-  Result := Copy(Result, 1, MAXSQLCHARS);
 end;
 
 end.

@@ -7475,3 +7475,9 @@ msgstr "Fix error: %s"
 
 msgid "The query editor is empty. Write or select the SQL first."
 msgstr "The query editor is empty. Write or select the SQL first."
+
+msgid "The SQL is too long to send. Select the statement to work on first."
+msgstr "The SQL is too long to send. Select the statement to work on first."
+
+msgid "The query failed in database \"%s\". Select that database to fix it."
+msgstr "The query failed in database \"%s\". Select that database to fix it."

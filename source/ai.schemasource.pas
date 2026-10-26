@@ -17,6 +17,7 @@ type
     Prompt: String;        // The user's question, scanned for table names
     Sql: String;           // Current or selected SQL, scanned for table names
     ActiveObject: String;  // Table or view selected in the tree, may be empty
+    ConnectionBusy: Boolean; // A query thread uses the connection, see TAiHostState
     Budget: TAiContextBudget;
   end;
 
@@ -190,7 +191,7 @@ begin
   Result := Default(TAiSchemaResult);
   if (Conn = nil) or (Input.Database = '') then
     Exit;
-  Result.CacheOnly := Conn.IsLockedByThread;
+  Result.CacheOnly := Conn.IsLockedByThread or Input.ConnectionBusy;
   if Result.CacheOnly and (not Conn.DbObjectsCached(Input.Database)) then
     Exit;
 

@@ -108,7 +108,9 @@ The Query menu and the query editor's context menu also offer:
   suggestions as `CREATE INDEX` statements.
 - **Fix error with AI**: when a query fails, the panel shows the error with a **Fix error**
   button. The failed statement and the server's message are sent, and the answer contains the
-  corrected SQL. A later successful query in the same tab removes the offer.
+  corrected SQL. A later successful query in the same tab removes the offer, a cancelled one
+  does not. The fix is asked with the schema of the database the query ran in, so that
+  database must still be selected.
 
 Text typed into the prompt box before choosing one of these is sent along as a remark, e.g.
 "focus on the joins". As with Generate SQL, nothing is executed.

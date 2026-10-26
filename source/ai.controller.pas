@@ -56,7 +56,10 @@ type
     function Busy: Boolean;
     function ActiveTabHasQueryError: Boolean;
     // Called after every query run: remembers the failed statement and error, or forgets them
-    procedure QueryFinished(TabNumber: Integer; const SessionPath, Sql, ErrorMessage: String);
+    // after a success. Runs the user cancelled, and errors without a failed statement (e.g. from
+    // showing the result), leave the record as it is.
+    procedure QueryFinished(TabNumber: Integer; const SessionPath, Database, Sql,
+      ErrorMessage: String; Aborted: Boolean);
     procedure Cancel;
     procedure QueryTabClosed(TabNumber: Integer);
     // Cancels a running request and waits briefly for its worker thread
@@ -214,6 +217,8 @@ var
   Request: TAiTaskRequest;
 begin
   PanelVisible := True;
+  if FTracker.Busy then
+    Exit;
   Host := CaptureHostState(False);
   Conversation := FConversations.Find(Host.ConversationKey);
   Request := Default(TAiTaskRequest);
@@ -226,6 +231,12 @@ begin
   // Without a recorded error there is nothing to fix; empty SQL would fall back to the editor
   if (Request.ErrorMessage = '') or (Trim(Request.Sql) = '') then begin
     FPanel.SetStatus(_('No failed query to fix in this query tab.'), True);
+    Exit;
+  end;
+  // The schema sent with the fix must be the one the query ran against
+  if (Conversation.LastErrorDatabase <> '') and (Conversation.LastErrorDatabase <> Host.Database) then begin
+    FPanel.SetStatus(f_('The query failed in database "%s". Select that database to fix it.',
+      [Conversation.LastErrorDatabase]), True);
     Exit;
   end;
   RunTask(Request);
@@ -245,23 +256,28 @@ function TAiController.ActiveTabHasQueryError: Boolean;
 var
   Conversation: TAiConversation;
 begin
-  Conversation := FConversations.Find(CaptureHostState(False).ConversationKey);
+  // Runs on every action update, so only the cheap key lookup
+  Conversation := FConversations.Find(ActiveConversationKey);
   Result := Assigned(Conversation) and (Conversation.LastErrorMessage <> '');
 end;
 
-procedure TAiController.QueryFinished(TabNumber: Integer; const SessionPath, Sql, ErrorMessage: String);
+procedure TAiController.QueryFinished(TabNumber: Integer; const SessionPath, Database, Sql,
+  ErrorMessage: String; Aborted: Boolean);
 var
   Key: String;
   Conversation: TAiConversation;
 begin
+  // A cancelled run is no error to fix; a closed tab needs no record
+  if Aborted or (not QueryTabExists(TabNumber)) then
+    Exit;
   Key := ConversationKey(TabNumber, SessionPath);
-  if ErrorMessage <> '' then
-    FConversations.Get(Key).SetQueryError(Sql, ErrorMessage)
-  else begin
+  if (ErrorMessage <> '') and (Sql <> '') then
+    FConversations.Get(Key).SetQueryError(Sql, ErrorMessage, Database)
+  else if ErrorMessage = '' then begin
     // A later successful run makes the old error irrelevant
     Conversation := FConversations.Find(Key);
     if Assigned(Conversation) then
-      Conversation.SetQueryError('', '');
+      Conversation.SetQueryError('', '', '');
   end;
   Refresh;
 end;
@@ -389,7 +405,7 @@ procedure TAiController.PanelClear(Sender: TObject);
 var
   Host: TAiHostState;
   Conversation: TAiConversation;
-  ErrorSql, ErrorMessage: String;
+  ErrorSql, ErrorMessage, ErrorDatabase: String;
 begin
   Host := CaptureHostState(False);
   if FTracker.BusyForTab(Host.ConversationKey) then
@@ -399,8 +415,9 @@ begin
     // Starting over keeps the record of a failed query, which still applies
     ErrorSql := Conversation.LastErrorSql;
     ErrorMessage := Conversation.LastErrorMessage;
+    ErrorDatabase := Conversation.LastErrorDatabase;
     Conversation.Clear;
-    Conversation.SetQueryError(ErrorSql, ErrorMessage);
+    Conversation.SetQueryError(ErrorSql, ErrorMessage, ErrorDatabase);
   end;
   Refresh;
 end;

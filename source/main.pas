@@ -3510,6 +3510,12 @@ begin
   // Find right query tab
   Tab := QueryTabs.TabByNumber(Thread.TabNumber);
 
+  // AI Edition: remember a failed statement for "Fix error", or forget it after a success.
+  // Before the modal error dialog, while the connection is certainly still there.
+  if Assigned(AiController) then
+    AiController.QueryFinished(Thread.TabNumber, Thread.Connection.Parameters.SessionPath,
+      Thread.Connection.Database, FailedStatementSql(Thread), Thread.ErrorMessage, Thread.Aborted);
+
   // Error handling
   if not Thread.ErrorMessage.IsEmpty then begin
     SetProgressState(pbsError);
@@ -3525,10 +3531,6 @@ begin
     end;
     ErrorDialog(Thread.ErrorMessage + ErrorHint);
   end;
-  // AI Edition: remember a failed statement for "Fix error", or forget it after a success
-  if Assigned(AiController) then
-    AiController.QueryFinished(Thread.TabNumber, Thread.Connection.Parameters.SessionPath,
-      FailedStatementSql(Thread), Thread.ErrorMessage);
 
   // Gather meta info for logging
   MetaInfo := _('Affected rows')+': '+FormatNumber(Thread.RowsAffected)+

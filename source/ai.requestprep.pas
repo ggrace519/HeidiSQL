@@ -65,16 +65,19 @@ end;
 
 function TaskTitle(const Request: TAiTaskRequest; const Sql: String): String;
 var
-  FirstLine: String;
+  FirstLine, ErrorLine: String;
 begin
   FirstLine := Trim(Sql);
   if Pos(#10, FirstLine) > 0 then
     FirstLine := Trim(Copy(FirstLine, 1, Pos(#10, FirstLine)-1)) + ' ...';
   FirstLine := Utf8Truncate(FirstLine, 80);
+  ErrorLine := Trim(Request.ErrorMessage);
+  if Pos(#10, ErrorLine) > 0 then
+    ErrorLine := Trim(Copy(ErrorLine, 1, Pos(#10, ErrorLine)-1)) + ' ...';
   case Request.Task of
     atExplain: Result := f_('Explain: %s', [FirstLine]);
     atOptimize: Result := f_('Optimize: %s', [FirstLine]);
-    atFixError: Result := f_('Fix error: %s', [Utf8Truncate(Trim(Request.ErrorMessage), 80)]);
+    atFixError: Result := f_('Fix error: %s', [Utf8Truncate(ErrorLine, 80)]);
     else Result := Trim(Request.UserText);
   end;
   if (Request.Task <> atGenerate) and (Trim(Request.UserText) <> '') then
@@ -122,8 +125,12 @@ begin
   Input.UserText := Request.UserText;
   if Request.Task <> atGenerate then begin
     Input.Sql := Request.Sql;
-    if Trim(Input.Sql) = '' then
+    if Trim(Input.Sql) = '' then begin
+      // Sending a cut-off query would make the model explain or rewrite something else
+      if Host.SqlTruncated then
+        Exit(_('The SQL is too long to send. Select the statement to work on first.'));
       Input.Sql := Host.Sql;
+    end;
   end;
   Input.ErrorMessage := Request.ErrorMessage;
   if not IsTaskInputComplete(Input) then begin
@@ -137,7 +144,12 @@ begin
   SchemaInput := Default(TAiSchemaInput);
   SchemaInput.Database := Host.Database;
   SchemaInput.Prompt := Request.UserText;
-  SchemaInput.Sql := Input.Sql + #10 + Host.Sql;
+  // Tables of the SQL being worked on; for Generate, those of the editor text
+  if Request.Task = atGenerate then
+    SchemaInput.Sql := Host.Sql
+  else
+    SchemaInput.Sql := Input.Sql;
+  SchemaInput.ConnectionBusy := Host.ConnectionBusy;
   SchemaInput.ActiveObject := Host.ActiveObject;
   SchemaInput.Budget := DefaultContextBudget;
   SchemaInput.Budget.MaxChars := Prepared.Profile.MaxContextChars;
