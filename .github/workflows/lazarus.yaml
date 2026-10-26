@@ -520,8 +520,11 @@ jobs:
             name: ubuntu-24.04-arm-QT6
             path: out/qt6arm/heidisql
 
+    # AI Edition: releases are made only from "ai-v<version>" tags (see DECISIONS.md, ADR-009).
+    # Mirrored upstream tags (v12.x) must not publish a release. No .deb/.rpm packages: they
+    # would install over a stock HeidiSQL package of the same name.
     release:
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'ai-v')
         env:
           GITHUB: 1
 
@@ -532,15 +535,16 @@ jobs:
         steps:
             - name: Checkout source code
               uses: actions/checkout@v6
-              with:
-                fetch-depth: 0
 
-            - name: Get current and previous tag into env vars
+            - name: Get tag and version into env vars
               run: |
                 echo "tag=${{ github.ref_name }}" >> "$GITHUB_ENV"
-                latest=$(git describe --abbrev=0 --tags)
-                prev_tag=$(git describe --abbrev=0 --tags "${latest}^")
-                echo "prev_tag=$prev_tag" >> "$GITHUB_ENV"
+                echo "version=${GITHUB_REF_NAME#ai-v}" >> "$GITHUB_ENV"
+
+            - name: Check that the tag matches AIEDITIONVERSION
+              run: |
+                grep -q "AIEDITIONVERSION = '${version}';" source/const.inc \
+                  || { echo "::error::Tag $tag does not match AIEDITIONVERSION in source/const.inc"; exit 1; }
 
             - name: Download Ubuntu GTK
               uses: actions/download-artifact@v7
@@ -571,16 +575,7 @@ jobs:
                 name: macos-app-bundle
                 path: dist
             - name: Rename macOS app bundle for release
-              run: mv dist/heidisql-macos-app.zip "dist/heidisql_${tag#v}_macos_app.zip"
-
-            # TODO: re-enable once the official installer is built in CI again.
-            # Until then, the official Windows installer is built manually on the maintainer's machine
-            # and must not be attached to the GitHub release.
-            # - name: Download Windows installer
-            #   uses: actions/download-artifact@v7
-            #   with:
-            #     name: windows-installer
-            #     path: dist
+              run: mv dist/heidisql-macos-app.zip "dist/heidisql-ai_${version}_macos_app.zip"
 
             - name: List files
               run: |
@@ -592,42 +587,29 @@ jobs:
             - name: Install gettext
               run: sudo apt install -y gettext
 
-            - name: Install FPM
-              run: sudo gem install --no-document fpm
+            - name: Create release archives
+              run: |
+                make tar-gtk2 tar-qt5 tar-qt6 tar-qt6arm
+                for variant in gtk2 qt5 qt6 qt6-arm64; do
+                  mv "dist/build-${variant}-${tag}.tgz" "dist/heidisql-ai_${version}_linux_${variant}.tgz"
+                done
 
-            - name: Install rpm tooling for fpm
-              run: sudo apt-get update && sudo apt-get install -y rpm
-
-            - name: Create release archives (Linux GTK)
-              run: make tar-gtk2
-
-            - name: Create debian package
-              run: make deb-package
-
-            - name: Build rpm package
-              run: make rpm-package
-
-            - name: Create release archives (Linux QT5)
-              run: make tar-qt5
-
-            - name: Create release archives (Linux QT6)
-              run: make tar-qt6
-
-            - name: Create release archives (Linux QT6 ARM64)
-              run: make tar-qt6arm
-
-            - name: Generate Release Notes
-              id: git-cliff
-              uses: orhun/git-cliff-action@v4
-              with:
-                config: .github/cliff.toml
-                args: "${{ env.prev_tag }}..HEAD --strip header"
+            - name: Release notes from CHANGELOG-AI.md
+              run: |
+                awk -v v="$version" '
+                  index($0, "## [" v "]") == 1 { found = 1; next }
+                  found && /^## \[/ { exit }
+                  found { print }
+                ' CHANGELOG-AI.md > release-notes.md
+                if ! grep -q '[^[:space:]]' release-notes.md; then
+                  echo "::error::No section for version $version in CHANGELOG-AI.md"; exit 1
+                fi
 
             - name: Create GitHub release
               uses: softprops/action-gh-release@v3
               with:
-                name: HeidiSQL ${{ env.tag }}
-                body: ${{ steps.git-cliff.outputs.content }}
+                name: HeidiSQL AI Edition ${{ env.version }}
+                body_path: release-notes.md
                 files: dist/*
               env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

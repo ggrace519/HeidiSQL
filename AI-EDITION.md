@@ -1,13 +1,12 @@
 # HeidiSQL AI Edition
 
-*As of 2026-10-25, version 0.1.0 (in development).*
+*As of 2026-10-26, version 0.1.0.*
 
 This fork of the HeidiSQL Lazarus/FreePascal port adds an AI assistant that helps write and
 understand SQL for the database you are connected to. It is developed on top of the upstream
 `lazarus` branch and can be installed next to a stock HeidiSQL.
 
-The assistant itself is still in development. This page covers how the fork differs from stock
-HeidiSQL today.
+This page covers how the fork differs from stock HeidiSQL.
 
 ## Differences from stock HeidiSQL
 

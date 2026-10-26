@@ -4,6 +4,10 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-26
+
+First release of the AI Edition.
+
 ### Added
 - **AI assistant panel** with **Generate SQL**: describe a query in your own words and the
   assistant writes SQL for the selected database, using its tables, columns and keys. The answer

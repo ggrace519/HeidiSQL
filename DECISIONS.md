@@ -112,3 +112,18 @@ service. `ai-v` tags keep fork releases apart from upstream `v12.x` tags mirrore
   rejected, as it hides which schema is sent.
 - **Cache-only schema while a query runs:** `TDBConnection` is not thread-safe, so when a query
   thread holds the connection only already cached table lists and columns are used.
+
+## ADR-009: Release process
+**Date:** 2026-10-26 · **Status:** accepted
+
+- **Tags:** a release is published only for `ai-v<version>` tags on `lazarus`, after `develop` was
+  promoted. The tag must match `AIEDITIONVERSION` in `source/const.inc`; the release job fails
+  otherwise. Mirrored upstream tags (`v12.x`) build but publish nothing.
+- **Notes** come from the version's section in `CHANGELOG-AI.md`, not from git-cliff, whose
+  configuration describes the upstream repository.
+- **Assets:** Linux archives (GTK2, Qt5, Qt6, Qt6 ARM64) and the macOS app bundle, named
+  `heidisql-ai_<version>_...`. No `.deb` or `.rpm` packages: they use the package name
+  `heidisql` and would replace a stock installation. No Windows installer yet, as upstream's
+  installer is not attached to releases either.
+- **Normal releases, not prereleases:** the in-app update check ignores prereleases, so a
+  prerelease would never be offered.
