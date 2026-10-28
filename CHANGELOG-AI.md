@@ -9,10 +9,10 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
   package named `heidisql-ai`. They install the GTK2 build with a menu entry and a
   `heidisql-ai` command, pull in the required libraries, and can be installed next to a stock
   HeidiSQL package without touching it.
-
-### Docs
 - **One-line install:** releases include an `install.sh` that installs the latest `.deb` (Debian,
   Ubuntu) or `.rpm` (Fedora) package with apt or dnf; the README shows the command.
+
+### Docs
 - README badges now show this fork's build, release, license and downloads instead of upstream's, and
   AI-EDITION.md explains how to install the Linux release archives.
 
