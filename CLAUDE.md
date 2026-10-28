@@ -34,7 +34,8 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 - Releases: bump `AIEDITIONVERSION` in `source/const.inc`, move `CHANGELOG-AI.md` `[Unreleased]`
   to a `[<version>] - <date>` section, promote, then tag `ai-v<version>` on `lazarus`. CI publishes
   the release from that tag only (ADR-009); other tags publish nothing. Assets: Linux archives plus
-  the `heidisql-ai` .deb/.rpm, which the build job makes on every run (ADR-010).
+  the `heidisql-ai` .deb/.rpm, which the build job makes on every run, and
+  `extra/packaging-ai/install.sh` (the README's one-line install; ADR-010).
 
 ## Code rules
 - New logic goes into new, small, single-purpose units. `main.pas` (16k lines), `apphelpers.pas`

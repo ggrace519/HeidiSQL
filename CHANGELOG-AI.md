@@ -11,6 +11,8 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
   HeidiSQL package without touching it.
 
 ### Docs
+- **One-line install:** releases include an `install.sh` that installs the latest `.deb` (Debian,
+  Ubuntu) or `.rpm` (Fedora) package with apt or dnf; the README shows the command.
 - README badges now show this fork's build, release, license and downloads instead of upstream's, and
   AI-EDITION.md explains how to install the Linux release archives.
 

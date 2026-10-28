@@ -154,5 +154,10 @@ superseded by ADR-010
 - **Upstream files are left alone:** `package-skeleton/`, `deb-control.txt` and the
   `deb-package`/`rpm-package` targets stay as upstream has them, to avoid merge conflicts. They
   still build a package named `heidisql` and must not be used for the fork.
+- **Install script:** releases also attach `extra/packaging-ai/install.sh`, so
+  `releases/latest/download/install.sh` is a stable URL for a one-line install. It is a release
+  asset rather than a file on a branch, so it always matches the packages next to it and only
+  appears with a release that has packages. It finds the package through the GitHub API and
+  installs it with apt or dnf (sudo when not root).
 - **Not yet:** no Qt6 or ARM64 packages and no apt/dnf repository; users download the file from
   the release.
