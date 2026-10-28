@@ -34,9 +34,12 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
   `ggrace519/.github` workflow, pinned to v1.0.2) opens and refreshes that PR after the Lazarus
   workflow passes on a `develop` push; run it by hand (`gh workflow run promote`) after docs-only
   pushes, which the Lazarus workflow skips. Merging it is always a manual decision.
-- Releases: bump `AIEDITIONVERSION` in `source/const.inc`, move `CHANGELOG-AI.md` `[Unreleased]`
-  to a `[<version>] - <date>` section, promote, then tag `ai-v<version>` on `lazarus`. CI publishes
-  the release from that tag only (ADR-009); other tags publish nothing. Assets: Linux archives plus
+- Releases (ADR-011): after a promotion passes CI, `release-pr.yml` opens the release PR
+  `release/next` → `develop` (`extra/release-ai/prepare-release.sh` sets `AIEDITIONVERSION` and dates
+  the `CHANGELOG-AI.md` `[Unreleased]` section; tests: `sh extra/release-ai/test-prepare-release.sh`).
+  Merge it, then the promotion PR; CI on the `lazarus` push publishes the release and creates the
+  `ai-v<version>` tag when that version is untagged. Never push release tags by hand. After a docs-only promotion (no CI run), `gh workflow run
+  release-pr` opens the release PR. Assets: Linux archives plus
   the `heidisql-ai` .deb/.rpm, which the build job makes on every run, and
   `extra/packaging-ai/install.sh` (the README's one-line install; ADR-010).
 

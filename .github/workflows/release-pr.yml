@@ -1,0 +1,106 @@
+# AI Edition: after a promotion to lazarus passes CI, opens or refreshes the release pull request
+# (release/next -> develop), which sets the next AIEDITIONVERSION and dates the CHANGELOG-AI.md
+# [Unreleased] section (DECISIONS.md, ADR-011). Merging it and then promoting develop publishes
+# the release: the Lazarus workflow tags an untagged AIEDITIONVERSION on lazarus.
+name: release-pr
+on:
+  workflow_run:
+    workflows: [Lazarus]
+    types: [completed]
+    branches: [lazarus]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: release-pr
+  cancel-in-progress: true
+jobs:
+  release-pr:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: release/next
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Open, refresh or close the release pull request
+        run: |
+          set -euo pipefail
+          existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --head "$BRANCH" --state open \
+            --json number --jq '.[0].number // empty')
+
+          current=$(sed -n "s/^ *AIEDITIONVERSION = '\(.*\)';.*/\1/p" source/const.inc)
+          [ -n "$current" ] || { echo "::error::AIEDITIONVERSION not found in source/const.inc"; exit 1; }
+          rc=0
+          git ls-remote --exit-code --tags origin "refs/tags/ai-v$current" >/dev/null || rc=$?
+          if [ "$rc" -eq 2 ]; then
+            echo "ai-v$current is not released yet; its promotion publishes it. Nothing to prepare."
+            exit 0
+          elif [ "$rc" -ne 0 ]; then
+            echo "::error::Could not read the tags of origin (git ls-remote exit code $rc)"; exit 1
+          fi
+
+          next=$(sh extra/release-ai/prepare-release.sh . "$(date -u +%Y-%m-%d)")
+          if [ -z "$next" ]; then
+            if [ -n "$existing" ]; then
+              gh pr close "$existing" --repo "$GITHUB_REPOSITORY" --delete-branch \
+                --comment "CHANGELOG-AI.md [Unreleased] is empty, so there is nothing to release."
+            fi
+            echo "CHANGELOG-AI.md [Unreleased] is empty; nothing to release."
+            exit 0
+          fi
+
+          # The workflow token may not update a branch across changes to .github/workflows. A branch
+          # left from a merged release pull request is deleted; an open one starts over with a new
+          # branch and pull request when workflow files changed since its last refresh.
+          if git fetch -q origin "$BRANCH" 2>/dev/null; then
+            if [ -z "$existing" ]; then
+              git push -q origin --delete "$BRANCH"
+            elif ! git diff --quiet FETCH_HEAD HEAD -- .github/workflows; then
+              gh pr close "$existing" --repo "$GITHUB_REPOSITORY" --delete-branch \
+                --comment "Replaced by a new release pull request, as workflow files changed on develop."
+              existing=""
+            fi
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -am "chore(release): ai-v$next"
+          git push -f origin "HEAD:refs/heads/$BRANCH"
+
+          title="chore(release): ai-v$next"
+          body_file=$(mktemp)
+          {
+            echo "Prepares release **ai-v$next**: sets \`AIEDITIONVERSION\` to \`$next\` and dates the"
+            echo "CHANGELOG-AI.md section. Change notes in [Unreleased] on develop; edits on this branch"
+            echo "are replaced when a later promotion refreshes it, so make them only right before merging."
+            echo
+            echo "To publish: merge this pull request (merge commit), then merge the promotion pull"
+            echo "request it triggers. CI on lazarus then tags \`ai-v$next\` and publishes the release."
+            echo
+            echo "## Release notes"
+            awk -v v="$next" '
+              index($0, "## [" v "]") == 1 { found = 1; next }
+              found && /^## \[/ { exit }
+              found { print }
+            ' CHANGELOG-AI.md
+            echo
+            echo "Maintained by \`.github/workflows/release-pr.yml\` (ADR-011). A later promotion refreshes"
+            echo "this pull request and replaces commits pushed to its branch."
+          } > "$body_file"
+
+          if [ -n "$existing" ]; then
+            jq -n --rawfile body "$body_file" --arg title "$title" '{title: $title, body: $body}' \
+              | gh api --method PATCH "repos/$GITHUB_REPOSITORY/pulls/$existing" --input - --jq .html_url
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base develop --head "$BRANCH" \
+              --title "$title" --body-file "$body_file"
+          fi

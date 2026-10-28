@@ -174,6 +174,10 @@ jobs:
           timeout-minutes: 10
           if: ${{ matrix.operating-system == 'ubuntu-latest' }}
           run: make test
+        # AI Edition: tests for the release preparation script (ADR-011)
+        - name: Test release scripts (Ubuntu)
+          if: ${{ matrix.operating-system == 'ubuntu-latest' }}
+          run: sh extra/release-ai/test-prepare-release.sh
         - name: Sign heidisql.exe via SignPath
           if: ${{ matrix.operating-system == 'windows-latest' && matrix.lazarus-versions == 'stable' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
           uses: signpath/github-action-submit-signing-request@v3
@@ -544,19 +548,51 @@ jobs:
             name: ubuntu-24.04-arm-QT6
             path: out/qt6arm/heidisql
 
-    # AI Edition: releases are made only from "ai-v<version>" tags (see DECISIONS.md, ADR-009).
-    # Mirrored upstream tags (v12.x) must not publish a release. Linux packages are "heidisql-ai"
+    # AI Edition: a push to lazarus publishes a release when AIEDITIONVERSION in source/const.inc
+    # has no "ai-v<version>" tag yet; the release creates that tag on the pushed commit (DECISIONS.md,
+    # ADR-011, which replaced tag-triggered releases from ADR-009). The release pull request from
+    # release-pr.yml sets the version. Mirrored upstream tags (v12.x) publish nothing. Linux packages are "heidisql-ai"
     # .deb/.rpm from the build job, which install next to stock HeidiSQL (ADR-010). No upstream
     # "heidisql" packages: they would replace a stock installation. No macOS app: the bundle job
     # signs and notarizes with upstream's certificates and only runs in HeidiSQL/HeidiSQL.
+    release-check:
+        if: github.event_name == 'push' && github.ref == 'refs/heads/lazarus'
+        name: Check for an unreleased version
+        runs-on: ubuntu-latest
+        outputs:
+          version: ${{ steps.check.outputs.version }}
+          publish: ${{ steps.check.outputs.publish }}
+        steps:
+            - name: Checkout source code
+              uses: actions/checkout@v6
+
+            - name: Compare AIEDITIONVERSION with the release tags
+              id: check
+              run: |
+                version=$(sed -n "s/^ *AIEDITIONVERSION = '\(.*\)';.*/\1/p" source/const.inc)
+                [ -n "$version" ] || { echo "::error::AIEDITIONVERSION not found in source/const.inc"; exit 1; }
+                echo "version=$version" >> "$GITHUB_OUTPUT"
+                rc=0
+                git ls-remote --exit-code --tags origin "refs/tags/ai-v$version" >/dev/null || rc=$?
+                case $rc in
+                  0) echo "ai-v$version is already released."; echo "publish=false" >> "$GITHUB_OUTPUT" ;;
+                  2) echo "ai-v$version is not released yet; publishing it."; echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+                  *) echo "::error::Could not read the tags of origin (git ls-remote exit code $rc)"; exit 1 ;;
+                esac
+
     release:
-        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'ai-v')
+        if: needs.release-check.outputs.publish == 'true'
         env:
           GITHUB: 1
 
         name: Create GitHub Release
         runs-on: [ubuntu-latest]
-        needs: [build, build-qt6arm]
+        needs: [build, build-qt6arm, release-check]
+        # Two quick pushes to lazarus can both see the tag missing: run releases one at a time and
+        # check the tag again right before publishing.
+        concurrency:
+          group: ai-release
+          cancel-in-progress: false
 
         steps:
             - name: Checkout source code
@@ -564,13 +600,8 @@ jobs:
 
             - name: Get tag and version into env vars
               run: |
-                echo "tag=${{ github.ref_name }}" >> "$GITHUB_ENV"
-                echo "version=${GITHUB_REF_NAME#ai-v}" >> "$GITHUB_ENV"
-
-            - name: Check that the tag matches AIEDITIONVERSION
-              run: |
-                grep -q "AIEDITIONVERSION = '${version}';" source/const.inc \
-                  || { echo "::error::Tag $tag does not match AIEDITIONVERSION in source/const.inc"; exit 1; }
+                echo "version=${{ needs.release-check.outputs.version }}" >> "$GITHUB_ENV"
+                echo "tag=ai-v${{ needs.release-check.outputs.version }}" >> "$GITHUB_ENV"
 
             - name: Download Ubuntu GTK
               uses: actions/download-artifact@v7
@@ -640,10 +671,24 @@ jobs:
                   echo "::error::No section for version $version in CHANGELOG-AI.md"; exit 1
                 fi
 
+            - name: Check that the tag is still missing
+              id: recheck
+              run: |
+                rc=0
+                git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null || rc=$?
+                case $rc in
+                  0) echo "$tag was published by another run; skipping."; echo "publish=false" >> "$GITHUB_OUTPUT" ;;
+                  2) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+                  *) echo "::error::Could not read the tags of origin (git ls-remote exit code $rc)"; exit 1 ;;
+                esac
+
             - name: Create GitHub release
+              if: steps.recheck.outputs.publish == 'true'
               uses: softprops/action-gh-release@v3
               with:
                 name: HeidiSQL AI Edition ${{ env.version }}
+                tag_name: ${{ env.tag }}
+                target_commitish: ${{ github.sha }}
                 body_path: release-notes.md
                 files: dist/*
               env:
