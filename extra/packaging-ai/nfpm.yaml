@@ -1,0 +1,94 @@
+# nfpm configuration for the HeidiSQL AI Edition .deb and .rpm packages (see DECISIONS.md, ADR-010).
+# Built with "make packages-ai" from the repository root, which sets VERSION from
+# AIEDITIONVERSION in source/const.inc. The package installs next to a stock "heidisql" package:
+# all paths and names differ.
+name: heidisql-ai
+arch: amd64
+platform: linux
+version: ${VERSION}
+release: 1
+section: database
+priority: optional
+maintainer: HeidiSQL AI Edition maintainers
+vendor: HeidiSQL AI Edition
+homepage: https://github.com/ggrace519/HeidiSQL
+license: GPL-2.0-or-later
+description: |-
+  SQL client with an AI assistant
+  HeidiSQL AI Edition is a fork of HeidiSQL, a desktop SQL client for MariaDB, MySQL,
+  PostgreSQL, Microsoft SQL Server, SQLite, Interbase and Firebird. It adds an AI assistant
+  that writes and explains SQL using an OpenAI-compatible server you choose. GTK2 build.
+
+contents:
+  - src: ./out/gtk2/heidisql
+    dst: /usr/share/heidisql-ai/heidisql-ai
+    file_info:
+      mode: 0755
+  - src: ./extra/locale/*.mo
+    dst: /usr/share/heidisql-ai/locale/
+    file_info:
+      mode: 0644
+  - src: ./extra/ini/*.ini
+    dst: /usr/share/heidisql-ai/
+    file_info:
+      mode: 0644
+  - src: ./extra/packaging-ai/heidisql-ai
+    dst: /usr/bin/heidisql-ai
+    file_info:
+      mode: 0755
+  - src: ./extra/packaging-ai/heidisql-ai.desktop
+    dst: /usr/share/applications/heidisql-ai.desktop
+    file_info:
+      mode: 0644
+  - src: ./res/deb-package-icon.png
+    dst: /usr/share/pixmaps/heidisql-ai.png
+    file_info:
+      mode: 0644
+  - src: ./README.md
+    dst: /usr/share/doc/heidisql-ai/README.md
+    file_info:
+      mode: 0644
+  - src: ./AI-EDITION.md
+    dst: /usr/share/doc/heidisql-ai/AI-EDITION.md
+    file_info:
+      mode: 0644
+  - src: ./extra/packaging-ai/copyright
+    dst: /usr/share/doc/heidisql-ai/copyright
+    file_info:
+      mode: 0644
+    packager: deb
+  - src: ./LICENSE
+    dst: /usr/share/licenses/heidisql-ai/LICENSE
+    file_info:
+      mode: 0644
+    packager: rpm
+    type: license
+
+# The database client libraries are loaded at runtime, only for the database types in use.
+# OpenSSL is needed for the AI assistant's HTTPS connections, libsecret for storing API keys in
+# the keychain.
+overrides:
+  deb:
+    depends:
+      - libgtk2.0-0t64 | libgtk2.0-0
+      - libssl3t64 | libssl3
+    recommends:
+      - libsecret-1-0
+      - libmariadb3
+      - libpq5
+      - libsqlite3-0
+      - libsybdb5
+      - libfbclient2
+      - openssh-client
+  rpm:
+    depends:
+      - gtk2
+      - openssl-libs
+    recommends:
+      - libsecret
+      - mariadb-connector-c
+      - libpq
+      - sqlite-libs
+      - freetds-libs
+      - libfbclient2
+      - openssh-clients

@@ -232,6 +232,30 @@ jobs:
             name: ${{ matrix.operating-system }}-GTK
             path: out/gtk2/heidisql
 
+        # AI Edition: .deb and .rpm packages from the GTK2 build, built on every run so packaging
+        # breaks show up before a release (DECISIONS.md, ADR-010). nfpm is pinned by checksum.
+        - name: Build heidisql-ai packages (Ubuntu)
+          if: ${{ matrix.operating-system == 'ubuntu-latest' }}
+          run: |
+            NFPM_VERSION=2.48.0
+            NFPM_SHA256=6d7f9a28b2f397934403950fcbba83f598b08d02edbe79a0815b3b4897341750
+            NFPM_TGZ="nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+            wget -q "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/${NFPM_TGZ}" -O "$RUNNER_TEMP/$NFPM_TGZ"
+            echo "${NFPM_SHA256}  $RUNNER_TEMP/$NFPM_TGZ" | sha256sum -c -
+            tar -xzf "$RUNNER_TEMP/$NFPM_TGZ" -C "$RUNNER_TEMP" nfpm
+            make packages-ai NFPM="$RUNNER_TEMP/nfpm"
+            dpkg-deb --info dist/heidisql-ai_*_amd64.deb
+            dpkg-deb --contents dist/heidisql-ai_*_amd64.deb
+
+        - name: Upload heidisql-ai packages
+          if: ${{ matrix.operating-system == 'ubuntu-latest' && matrix.lazarus-versions == 'stable' }}
+          uses: actions/upload-artifact@v6
+          with:
+            name: linux-packages
+            path: |
+              dist/heidisql-ai_*.deb
+              dist/heidisql-ai-*.rpm
+
         - name: Getting libqt5pas-dev, libqt6pas-dev
           if: ${{ matrix.operating-system == 'ubuntu-latest' }}
           run: |
@@ -521,8 +545,9 @@ jobs:
             path: out/qt6arm/heidisql
 
     # AI Edition: releases are made only from "ai-v<version>" tags (see DECISIONS.md, ADR-009).
-    # Mirrored upstream tags (v12.x) must not publish a release. No .deb/.rpm packages: they
-    # would install over a stock HeidiSQL package of the same name. No macOS app: the bundle job
+    # Mirrored upstream tags (v12.x) must not publish a release. Linux packages are "heidisql-ai"
+    # .deb/.rpm from the build job, which install next to stock HeidiSQL (ADR-010). No upstream
+    # "heidisql" packages: they would replace a stock installation. No macOS app: the bundle job
     # signs and notarizes with upstream's certificates and only runs in HeidiSQL/HeidiSQL.
     release:
         if: github.ref_type == 'tag' && startsWith(github.ref_name, 'ai-v')
@@ -570,6 +595,19 @@ jobs:
               with:
                 name: ubuntu-24.04-arm-QT6
                 path: out/qt6arm
+
+            - name: Download heidisql-ai packages
+              uses: actions/download-artifact@v7
+              with:
+                name: linux-packages
+                path: dist
+
+            # The version itself is checked against the tag above; nfpm may rewrite pre-release
+            # versions (0.2.0-rc1 -> 0.2.0~rc1), so only check that both packages are present.
+            - name: Check that both packages are present
+              run: |
+                ls dist/heidisql-ai_*_amd64.deb dist/heidisql-ai-*.x86_64.rpm
+
             - name: List files
               run: |
                 ls -alF out/gtk2

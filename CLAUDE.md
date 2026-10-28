@@ -15,6 +15,11 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
   and runs all tests; exit code is non-zero on failures. CI runs it on Ubuntu. Tests cover only
   LCL-free units; fixtures are in `tests/fixtures/`. Register each new test unit in the `uses` of
   `tests/heidisql_tests.lpr`.
+- `make packages-ai` builds the `heidisql-ai` .deb and .rpm from `out/gtk2/heidisql` into `dist/`
+  with nfpm (`NFPM=<path>` to override; target in `extra/packaging-ai/packages.mk`, config in `nfpm.yaml`, ADR-010). Without a local
+  nfpm, run the image: `podman run --rm -e VERSION=<AIEDITIONVERSION> -v "$PWD":/src:Z -w /src
+  ghcr.io/goreleaser/nfpm:v2.48.0 package --config extra/packaging-ai/nfpm.yaml --packager deb --target dist/`.
+  Never use upstream's `deb-package`/`rpm-package`: they build a package named `heidisql`.
 - `make smoke` builds `out/tests/ai_smoke` to try `ai.http` against a real server, e.g.
   `out/tests/ai_smoke http://127.0.0.1:11434/v1 qwen2.5:7b` (add `--key-env NAME` for a key,
   `--models` to list models, `--cancel-after MS` to test cancelling, `--insecure` / `--ca-file`).
@@ -28,7 +33,8 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
   `develop` → `lazarus` is a merge commit PR, never squash.
 - Releases: bump `AIEDITIONVERSION` in `source/const.inc`, move `CHANGELOG-AI.md` `[Unreleased]`
   to a `[<version>] - <date>` section, promote, then tag `ai-v<version>` on `lazarus`. CI publishes
-  the release from that tag only (ADR-009); other tags publish nothing.
+  the release from that tag only (ADR-009); other tags publish nothing. Assets: Linux archives plus
+  the `heidisql-ai` .deb/.rpm, which the build job makes on every run (ADR-010).
 
 ## Code rules
 - New logic goes into new, small, single-purpose units. `main.pas` (16k lines), `apphelpers.pas`
