@@ -12,6 +12,8 @@ a local one such as Ollama, so nothing leaves your computer, or any OpenAI-compa
 [![License](https://img.shields.io/github/license/ggrace519/HeidiSQL?logo=github)](https://github.com/ggrace519/HeidiSQL/blob/lazarus/LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/ggrace519/HeidiSQL/total?logo=github)](https://github.com/ggrace519/HeidiSQL/releases)
 
+![The AI assistant panel on the right has written a query for a SQLite demo shop database](docs/ai-assistant.png)
+
 Everything else is HeidiSQL: a desktop SQL client for MariaDB, MySQL, PostgreSQL, Microsoft SQL
 Server, SQLite, Interbase and Firebird. The AI Edition is built from the HeidiSQL
 Lazarus/FreePascal port and installs next to a stock HeidiSQL without touching its settings.
