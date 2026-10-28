@@ -1,0 +1,175 @@
+# AI Edition: checks a published release from the outside, the way users get it (DECISIONS.md,
+# ADR-012). Runs after the Lazarus workflow on lazarus when that run published a release, or by
+# hand for any ai-v tag. A release that fails after an automatic run is marked as a prerelease,
+# which hides it from releases/latest (the one-line install) and from the in-app update check.
+name: release-verify
+on:
+  workflow_run:
+    workflows: [Lazarus]
+    types: [completed]
+    branches: [lazarus]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to verify, e.g. ai-v0.2.0
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: release-verify-${{ github.event.workflow_run.head_sha || inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  find:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion != 'cancelled' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.find.outputs.tag }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Find the release to verify
+        id: find
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Only when this lazarus run published the release of its AIEDITIONVERSION, also when the
+          # run failed after publishing (e.g. an incomplete upload).
+          version=$(sed -n "s/^ *AIEDITIONVERSION = '\(.*\)';.*/\1/p" source/const.inc)
+          [ -n "$version" ] || { echo "::error::AIEDITIONVERSION not found"; exit 1; }
+          tag="ai-v$version"
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>"$RUNNER_TEMP/err"; then
+            grep -q "HTTP 404" "$RUNNER_TEMP/err" || { cat "$RUNNER_TEMP/err"; echo "::error::Could not look up $tag"; exit 1; }
+            echo "$tag does not exist; this run published no release."; exit 0
+          fi
+          target=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)
+          if [ "$target" = "$HEAD_SHA" ]; then
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "This run published no release ($tag points to ${target:-nothing}); nothing to verify."
+          fi
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+
+  assets:
+    needs: find
+    if: needs.find.outputs.tag != ''
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.find.outputs.tag }}
+    steps:
+      - name: Download the release
+        run: |
+          for _ in 1 2 3; do
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir assets --clobber && exit 0
+            sleep 15
+          done
+          exit 1
+
+      - name: Check that every asset is there
+        run: |
+          set -euo pipefail
+          version=${TAG#ai-v}
+          missing=0
+          for f in "heidisql-ai_${version}-1_amd64.deb" "heidisql-ai-${version}-1.x86_64.rpm" install.sh \
+                   "heidisql-ai_${version}_linux_gtk2.tgz" "heidisql-ai_${version}_linux_qt5.tgz" \
+                   "heidisql-ai_${version}_linux_qt6.tgz" "heidisql-ai_${version}_linux_qt6-arm64.tgz"; do
+            if [ -s "assets/$f" ]; then echo "ok      $f"; else echo "::error::Missing or empty asset: $f"; missing=1; fi
+          done
+          exit "$missing"
+
+      # Releases up to 0.2.0 have neither checksums nor attestations: a manual check of such a tag
+      # warns. A release checked automatically must have them.
+      - name: Verify checksums
+        run: |
+          set -euo pipefail
+          cd assets
+          if [ ! -f SHA256SUMS ]; then
+            if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then echo "::error::$TAG has no SHA256SUMS"; exit 1; fi
+            echo "::warning::$TAG has no SHA256SUMS (released before checksums were added)"; exit 0
+          fi
+          sha256sum --check --strict SHA256SUMS
+          for f in *; do
+            [ "$f" = SHA256SUMS ] || grep -q "  $f\$" SHA256SUMS || { echo "::error::$f is not in SHA256SUMS"; exit 1; }
+          done
+
+      - name: Verify build provenance
+        run: |
+          set -euo pipefail
+          cd assets
+          if [ ! -f SHA256SUMS ]; then
+            echo "::warning::$TAG has no attestations (released before they were added)"; exit 0
+          fi
+          while read -r _ f; do
+            gh attestation verify "$f" --repo "$GITHUB_REPOSITORY" --source-ref refs/heads/lazarus \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/lazarus.yaml" >/dev/null </dev/null
+            echo "attested  $f"
+          done < SHA256SUMS
+
+  install:
+    needs: find
+    if: needs.find.outputs.tag != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:13", "ubuntu:24.04", "fedora:43"]
+    container: ${{ matrix.image }}
+    env:
+      TAG: ${{ needs.find.outputs.tag }}
+    steps:
+      # Network steps retry, so a mirror hiccup does not hide a good release.
+      - name: Install test tools
+        run: |
+          for _ in 1 2 3; do
+            if command -v apt-get >/dev/null; then
+              apt-get update -qq && DEBIAN_FRONTEND=noninteractive \
+                apt-get install -y -qq curl ca-certificates xvfb xauth procps >/dev/null && exit 0
+            else
+              dnf -y -q install xorg-x11-server-Xvfb xauth procps-ng >/dev/null && exit 0
+            fi
+            sleep 15
+          done
+          exit 1
+
+      # The release's own install.sh, pointed at this release instead of the latest one.
+      - name: Install with the release's install.sh
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/install.sh" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/install.sh"
+          export HEIDISQL_AI_RELEASE_API="https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$TAG"
+          for _ in 1 2 3; do sh "$RUNNER_TEMP/install.sh" && exit 0; sleep 15; done
+          exit 1
+
+      - name: Start the program
+        run: |
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/cfg"
+          # shellcheck disable=SC2016 # the inner sh expands these itself
+          xvfb-run -a sh -c 'heidisql-ai & for i in $(seq 30); do p=$(pgrep -x heidisql-ai) && break; sleep 1; done; [ -n "$p" ] || { echo "::error::heidisql-ai is not running"; exit 1; }; sleep 5; kill -0 $p || { echo "::error::heidisql-ai exited"; exit 1; }; echo "running: $(readlink /proc/$p/exe)"; kill $p'
+          test -d "$XDG_CONFIG_HOME/heidisql-ai"
+
+  hide-failed-release:
+    needs: [find, assets, install]
+    if: failure() && github.event_name == 'workflow_run' && needs.find.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.find.outputs.tag }}
+    steps:
+      - name: Mark the release as a prerelease
+        run: |
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease
+          echo "::error::$TAG failed verification and is now a prerelease, hidden from releases/latest and the update check. Fix it and publish a new version; if the failure was a CI hiccup, restore it with: gh release edit $TAG --prerelease=false"

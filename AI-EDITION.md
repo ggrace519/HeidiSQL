@@ -144,6 +144,16 @@ The package also adds "HeidiSQL AI Edition" to the application menu. Database cl
 (MariaDB, PostgreSQL, SQLite, FreeTDS, Firebird) are recommended dependencies, which apt and dnf
 install by default.
 
+The install script checks the package against the release's `SHA256SUMS` before installing it,
+which catches damaged or incomplete downloads. The attestation also proves the file was built by
+this repository's CI, which `SHA256SUMS` alone cannot. To check a download yourself (releases
+after 0.2.0):
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS                  # the file is intact
+gh attestation verify heidisql-ai_<version>-1_amd64.deb -R ggrace519/HeidiSQL   # built by this repo's CI
+```
+
 Archives are available for GTK2, Qt5, Qt6, and Qt6 for ARM64. The archive has no top folder, so
 unpack it into its own folder:
 
