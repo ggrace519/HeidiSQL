@@ -69,6 +69,8 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 - Actions added to `MainForm.ActionList1` after the caption snapshot in `TMainForm.FormCreate`
   (loop filling `FActionList1DefaultCaptions`) break Preferences > Shortcuts.
 - `TDBConnection` is not thread-safe. Read schema data on the main thread.
+- `README.md` is the fork's own page, rewritten from upstream's. When an upstream merge conflicts
+  there, keep ours and port anything still relevant (e.g. a new Lazarus version in Building).
 - Pascal units declare each public routine twice (interface and implementation). Scripted
   find/replace on a signature hits both; anchor such edits to one section.
 - Strings are UTF-8 because LazUTF8 makes UTF-8 the default code page, whatever the system locale.

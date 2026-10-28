@@ -4,6 +4,11 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 
 ## [Unreleased]
 
+### Docs
+- The README now describes the AI Edition itself: its features, the one-line install, how to
+  start with the assistant, and credits to the upstream HeidiSQL project, instead of upstream's
+  introduction.
+
 ## [0.2.0] - 2026-10-28
 
 ### Added
