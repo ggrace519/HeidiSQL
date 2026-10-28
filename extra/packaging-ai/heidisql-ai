@@ -1,0 +1,4 @@
+#!/bin/sh
+# Launcher for the HeidiSQL AI Edition package. The program reads its translations and
+# functions-*.ini files from the folder that holds the executable, which it finds itself.
+exec /usr/share/heidisql-ai/heidisql-ai "$@"

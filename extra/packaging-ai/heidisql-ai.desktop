@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+
+Name=HeidiSQL AI Edition
+Comment=SQL client with an AI assistant
+Icon=heidisql-ai
+
+Exec=heidisql-ai %F
+TryExec=heidisql-ai
+Terminal=false
+StartupWMClass=heidisql-ai
+
+Categories=Database;Development;
+Keywords=database;sql;mysql;mariadb;postgresql;mssql;sqlite;ai;

@@ -114,7 +114,8 @@ service. `ai-v` tags keep fork releases apart from upstream `v12.x` tags mirrore
   thread holds the connection only already cached table lists and columns are used.
 
 ## ADR-009: Release process
-**Date:** 2026-10-26 · **Status:** accepted
+**Date:** 2026-10-26 · **Status:** accepted; the Assets point about `.deb`/`.rpm` is
+superseded by ADR-010
 
 - **Tags:** a release is published only for `ai-v<version>` tags on `lazarus`, after `develop` was
   promoted. The tag must match `AIEDITIONVERSION` in `source/const.inc`; the release job fails
@@ -129,3 +130,29 @@ service. `ai-v` tags keep fork releases apart from upstream `v12.x` tags mirrore
   Gatekeeper. A macOS release needs the fork's own Apple Developer certificate.
 - **Normal releases, not prereleases:** the in-app update check ignores prereleases, so a
   prerelease would never be offered.
+
+## ADR-010: Linux packages under their own name
+**Date:** 2026-10-28 · **Status:** accepted
+
+- **Decision:** releases also attach a `.deb` and an `.rpm` package named `heidisql-ai`, built from
+  the GTK2 binary, with nfpm and `extra/packaging-ai/nfpm.yaml` (`make packages-ai`). The CI
+  builds them on every run, so packaging problems show up before a release.
+- **Side by side with stock HeidiSQL:** every installed path and name differs from upstream's
+  `heidisql` package: `/usr/share/heidisql-ai/`, `/usr/bin/heidisql-ai`, `heidisql-ai.desktop`,
+  and the `heidisql-ai.png` icon. No `Conflicts:`. The executable is installed as `heidisql-ai`
+  because GTK takes the window class from the program name, so the desktop entry's
+  `StartupWMClass=heidisql-ai` matches only this edition. No code change is needed: on Linux the
+  program loads translations and `functions-*.ini` from the folder of the executable.
+- **GTK2, not Qt6** (upstream packages Qt6): the Qt6 build needs libqt6pas 6.2.x, while Debian 13
+  ships `libqt6pas6` 2.2, so a Qt6 package would install and then fail to start. GTK2 is
+  available on Debian, Ubuntu and Fedora. The Qt archives stay available.
+- **Dependencies:** GTK2 and OpenSSL (HTTPS for the AI assistant) are required. libsecret and the
+  database client libraries are recommended only: the program loads them at runtime, by their
+  versioned names, only for the database types in use.
+- **Version:** `AIEDITIONVERSION` from `source/const.inc`, package release `1`. The tag cannot be
+  used, as `ai-0.1.0` is not a valid Debian version.
+- **Upstream files are left alone:** `package-skeleton/`, `deb-control.txt` and the
+  `deb-package`/`rpm-package` targets stay as upstream has them, to avoid merge conflicts. They
+  still build a package named `heidisql` and must not be used for the fork.
+- **Not yet:** no Qt6 or ARM64 packages and no apt/dnf repository; users download the file from
+  the release.

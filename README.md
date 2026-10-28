@@ -2,7 +2,7 @@
 
 > **HeidiSQL AI Edition** — this fork adds an AI assistant for writing and understanding SQL.
 > See [AI-EDITION.md](AI-EDITION.md) for what differs from stock HeidiSQL, how to install it, and how
-> to use the assistant. Linux archives are on the [releases page](https://github.com/ggrace519/HeidiSQL/releases/latest).
+> to use the assistant. Linux archives (and, after 0.1.0, `.deb`/`.rpm` packages) are on the [releases page](https://github.com/ggrace519/HeidiSQL/releases/latest).
 
 [![Build Status](https://github.com/ggrace519/HeidiSQL/actions/workflows/lazarus.yaml/badge.svg?branch=lazarus)](https://github.com/ggrace519/HeidiSQL/actions/workflows/lazarus.yaml?query=branch%3Alazarus)
 [![Latest Release](https://img.shields.io/github/v/release/ggrace519/HeidiSQL?label=latest%20release&logo=github)](https://github.com/ggrace519/HeidiSQL/releases/latest)

@@ -227,3 +227,6 @@ tar-qt6arm:
 	cp -v out/qt6arm/heidisql tar
 	chmod +x tar/heidisql
 	cd tar && tar -zcvf ../dist/build-qt6-arm64-$(tag).tgz *
+
+# AI Edition: heidisql-ai .deb/.rpm packages (ADR-010)
+include extra/packaging-ai/packages.mk
