@@ -30,7 +30,10 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 ## Branches
 - `lazarus` = released branch, where upstream is merged in. `develop` = integration branch.
 - Feature branches `<type>/<kebab-summary>` from `develop`. PRs target `develop`; promotion
-  `develop` → `lazarus` is a merge commit PR, never squash.
+  `develop` → `lazarus` is a merge commit PR, never squash. `.github/workflows/promote.yml` (shared
+  `ggrace519/.github` workflow, pinned to v1.0.2) opens and refreshes that PR after the Lazarus
+  workflow passes on a `develop` push; run it by hand (`gh workflow run promote`) after docs-only
+  pushes, which the Lazarus workflow skips. Merging it is always a manual decision.
 - Releases: bump `AIEDITIONVERSION` in `source/const.inc`, move `CHANGELOG-AI.md` `[Unreleased]`
   to a `[<version>] - <date>` section, promote, then tag `ai-v<version>` on `lazarus`. CI publishes
   the release from that tag only (ADR-009); other tags publish nothing. Assets: Linux archives plus
