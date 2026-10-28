@@ -608,6 +608,10 @@ jobs:
               run: |
                 ls dist/heidisql-ai_*_amd64.deb dist/heidisql-ai-*.x86_64.rpm
 
+            # Served as releases/latest/download/install.sh, the one-line install in README.md.
+            - name: Add install script
+              run: cp extra/packaging-ai/install.sh dist/install.sh
+
             - name: List files
               run: |
                 ls -alF out/gtk2

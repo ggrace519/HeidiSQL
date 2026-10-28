@@ -126,7 +126,13 @@ Windows and macOS users build from source (see below).
 
 The easiest way is the package for your distribution (GTK2 build, 64-bit x86), included in
 releases after 0.1.0. It is named `heidisql-ai` and can be installed next to a stock HeidiSQL
-package. Replace `<version>` with the version you downloaded:
+package. The release's install script picks the right one and installs it with apt or dnf:
+
+```sh
+curl -fsSL https://github.com/ggrace519/HeidiSQL/releases/latest/download/install.sh | sh
+```
+
+Or download the package yourself and install it, replacing `<version>`:
 
 ```sh
 sudo apt install ./heidisql-ai_<version>-1_amd64.deb     # Debian, Ubuntu
