@@ -4,6 +4,8 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
 ### Added
 - **Verified releases:** each release includes `SHA256SUMS` and signed build provenance for every
   file, so a download can be checked with `sha256sum` and `gh attestation verify`. The one-line
