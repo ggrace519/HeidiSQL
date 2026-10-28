@@ -170,7 +170,8 @@ package named `heidisql`, which would replace a stock HeidiSQL package.
 
 The AI Edition has its own version (`AIEDITIONVERSION` in `source/const.inc`), independent of
 the upstream version shown in the window title. Releases are tagged `ai-v<version>`, for
-example `ai-v0.1.0`.
+example `ai-v0.1.0`. A release is prepared by a pull request that the CI opens after changes
+reach the `lazarus` branch; merging it and promoting `develop` publishes the release.
 
 See [CHANGELOG-AI.md](CHANGELOG-AI.md) for changes, and [DECISIONS.md](DECISIONS.md) for the
 reasoning behind them.

@@ -24,4 +24,4 @@ jobs:
     with:
       ref: ${{ github.event.workflow_run.head_sha }}
       base: lazarus
-      merge-note: "Merging releases nothing by itself: a release is published only from an ai-v<version> tag on lazarus (ADR-009)."
+      merge-note: "Merging publishes a release when AIEDITIONVERSION has no ai-v<version> tag yet; the release pull request sets the version (ADR-011)."

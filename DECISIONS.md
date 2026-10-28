@@ -115,7 +115,7 @@ service. `ai-v` tags keep fork releases apart from upstream `v12.x` tags mirrore
 
 ## ADR-009: Release process
 **Date:** 2026-10-26 · **Status:** accepted; the Assets point about `.deb`/`.rpm` is
-superseded by ADR-010
+superseded by ADR-010, the Tags point (manually pushed tags) by ADR-011
 
 - **Tags:** a release is published only for `ai-v<version>` tags on `lazarus`, after `develop` was
   promoted. The tag must match `AIEDITIONVERSION` in `source/const.inc`; the release job fails
@@ -161,3 +161,40 @@ superseded by ADR-010
   installs it with apt or dnf (sudo when not root).
 - **Not yet:** no Qt6 or ARM64 packages and no apt/dnf repository; users download the file from
   the release.
+
+## ADR-011: Automated release pull request and tagging
+**Date:** 2026-10-28 · **Status:** accepted
+
+- **Decision:** releases need two merges and no typed commands. After a promotion to `lazarus`
+  passes CI, `.github/workflows/release-pr.yml` opens or refreshes a release pull request
+  (`release/next` → `develop`), made by `extra/release-ai/prepare-release.sh`. It sets the next
+  `AIEDITIONVERSION` and turns the `CHANGELOG-AI.md` `[Unreleased]` section into
+  `[<version>] - <date>`. Merging it, then the promotion pull request that follows, publishes
+  the release: on a push to `lazarus`, the Lazarus workflow checks whether `AIEDITIONVERSION`
+  has an `ai-v<version>` tag and, if not, publishes the release, which creates that tag on the
+  pushed commit.
+- **Next version from the changelog:** a minor bump when `[Unreleased]` has `### Added` or
+  `### Changed`, a patch bump otherwise. To override it, edit the release branch right before
+  merging: a later promotion refreshes the branch and replaces such edits. Lasting changes to
+  the notes go into `[Unreleased]` on `develop`.
+- **The pull request targets `develop`, not `lazarus`:** a version commit made on `lazarus`
+  only would leave `develop` behind and need a back-merge for every release. `lazarus` keeps
+  receiving only promotions and upstream merges. An upstream merge also publishes a pending
+  untagged version, like a promotion does.
+- **Tagging in the same run, not by pushing a tag:** a tag pushed with the workflow token does
+  not start workflows, so a separate tagging step could not trigger the release. The release
+  also uses the binaries built for the pushed commit instead of building again.
+- **No release PR while a version is pending:** if `AIEDITIONVERSION` is not tagged yet, its
+  promotion publishes it, so no new version is prepared. An empty `[Unreleased]` closes an
+  open release pull request.
+- **What ships is what was promoted:** changes merged into `develop` after the release pull
+  request but before the promotion are in that release's binaries while their changelog entries
+  go to the next version. The promotion pull request's commit list is the exact content.
+- **Refreshing across workflow changes:** the workflow token may not update a branch across
+  changes to `.github/workflows`, so the release pull request is closed and opened anew then.
+- **Docs-only promotions start nothing:** the Lazarus workflow skips pushes that change only
+  documentation, so such a promotion opens no release pull request; run `gh workflow run
+  release-pr` by hand if one is wanted. A release pull request always changes
+  `source/const.inc`, so its promotion does run CI and publishes.
+- **Manual tags no longer publish.** ADR-009's other points stay: notes from `CHANGELOG-AI.md`,
+  normal releases rather than prereleases, mirrored upstream tags publish nothing.
