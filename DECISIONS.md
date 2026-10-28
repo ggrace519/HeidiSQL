@@ -192,6 +192,10 @@ superseded by ADR-010, the Tags point (manually pushed tags) by ADR-011
   go to the next version. The promotion pull request's commit list is the exact content.
 - **Refreshing across workflow changes:** the workflow token may not update a branch across
   changes to `.github/workflows`, so the release pull request is closed and opened anew then.
+- **No checks on the release pull request:** branches and pull requests made with the workflow
+  token start no workflows, so the release pull request shows no checks. It changes only the
+  version and the changelog; merging it runs the full CI on `develop`, and the promotion pull
+  request is checked before anything is published.
 - **Docs-only promotions start nothing:** the Lazarus workflow skips pushes that change only
   documentation, so such a promotion opens no release pull request; run `gh workflow run
   release-pr` by hand if one is wanted. A release pull request always changes
