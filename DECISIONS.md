@@ -202,3 +202,30 @@ superseded by ADR-010, the Tags point (manually pushed tags) by ADR-011
   `source/const.inc`, so its promotion does run CI and publishes.
 - **Manual tags no longer publish.** ADR-009's other points stay: notes from `CHANGELOG-AI.md`,
   normal releases rather than prereleases, mirrored upstream tags publish nothing.
+
+## ADR-012: Release integrity: checksums, provenance and a check after publishing
+**Date:** 2026-10-28 · **Status:** accepted
+
+- **Checksums:** every release attaches `SHA256SUMS` for all its assets.
+- **Build provenance:** the release job signs a SLSA provenance attestation for every asset
+  (`actions/attest-build-provenance`, pinned by commit, keyless through GitHub's Sigstore
+  instance). `gh attestation verify <file> -R ggrace519/HeidiSQL` proves that a file was built by
+  this repository's CI on `lazarus`. No signing key to keep or rotate.
+- **The install script checks before installing:** `install.sh` refuses to install a package
+  whose SHA-256 does not match `SHA256SUMS`, or a release without `SHA256SUMS`. That catches
+  damaged and incomplete downloads; as both files come from the same release, only the
+  attestation proves where a file was built.
+- **Checked from the outside after publishing:** `.github/workflows/release-verify.yml` runs
+  after a `lazarus` run that published a release (or by hand for any tag). It downloads the
+  release, checks that every expected asset is there, verifies checksums and attestations, and
+  installs it with the release's `install.sh` on Debian 13, Ubuntu 24.04 and Fedora 43, then
+  starts the program under Xvfb. If an automatic check fails, the release is marked as a
+  prerelease: that hides it from `releases/latest`, so the one-line install and the in-app
+  update check go back to the previous release until a fixed version is published. Network steps
+  retry three times so a mirror hiccup does not hide a good release; if one does, `gh release edit
+  <tag> --prerelease=false` restores it. Runs that failed after publishing are checked too.
+- **Older releases:** 0.2.0 and earlier have neither checksums nor attestations; the check reports
+  that as a warning instead of failing.
+- **Not done:** no GPG signatures on the `.deb`/`.rpm`. Checksums and provenance give the same
+  assurance without a key to manage. Signing becomes worth it with an apt or dnf repository,
+  where the package managers expect it.

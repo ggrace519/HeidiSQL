@@ -593,6 +593,11 @@ jobs:
         concurrency:
           group: ai-release
           cancel-in-progress: false
+        # contents: publish the release; id-token and attestations: sign the build provenance (ADR-012)
+        permissions:
+          contents: write
+          id-token: write
+          attestations: write
 
         steps:
             - name: Checkout source code
@@ -681,6 +686,20 @@ jobs:
                   2) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
                   *) echo "::error::Could not read the tags of origin (git ls-remote exit code $rc)"; exit 1 ;;
                 esac
+
+            # AI Edition: checksums of every asset and signed build provenance for them (ADR-012).
+            # Verify a download with: gh attestation verify <file> -R ggrace519/HeidiSQL
+            - name: Write SHA256SUMS
+              if: steps.recheck.outputs.publish == 'true'
+              run: |
+                (cd dist && sha256sum -- * > ../SHA256SUMS) && mv SHA256SUMS dist/SHA256SUMS
+                cat dist/SHA256SUMS
+
+            - name: Attest build provenance
+              if: steps.recheck.outputs.publish == 'true'
+              uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+              with:
+                subject-checksums: dist/SHA256SUMS
 
             - name: Create GitHub release
               if: steps.recheck.outputs.publish == 'true'

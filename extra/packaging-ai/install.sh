@@ -12,6 +12,7 @@ fail() {
 }
 
 command -v curl >/dev/null 2>&1 || fail "curl is required."
+command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required (coreutils)."
 [ "$(uname -m)" = "x86_64" ] || fail "packages are built for x86_64 only. Use a release archive instead."
 
 if command -v apt-get >/dev/null 2>&1; then
@@ -30,14 +31,26 @@ if [ "$(id -u)" -ne 0 ]; then
 	SUDO="sudo"
 fi
 
-url=$(curl -fsSL "$API_URL" | grep -o "\"browser_download_url\": *\"[^\"]*${pattern}\"" | head -n 1 | sed 's/.*"\(http[^"]*\)"$/\1/') || true
+release=$(curl -fsSL "$API_URL") || fail "could not read the release from $API_URL"
+asset_url() {
+	printf '%s\n' "$release" | grep -o "\"browser_download_url\": *\"[^\"]*$1\"" | head -n 1 | sed 's/.*"\(http[^"]*\)"$/\1/'
+}
+url=$(asset_url "$pattern")
 [ -n "$url" ] || fail "the latest release has no package for this system."
+sums_url=$(asset_url '/SHA256SUMS')
+[ -n "$sums_url" ] || fail "the release has no SHA256SUMS, so the package cannot be verified."
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 file="$tmpdir/${url##*/}"
 echo "Downloading $url"
 curl -fSL --progress-bar -o "$file" "$url"
+curl -fsSL -o "$tmpdir/SHA256SUMS" "$sums_url"
+expected=$(awk -v f="${url##*/}" '$2 == f || $2 == "*" f { print $1 }' "$tmpdir/SHA256SUMS")
+[ -n "$expected" ] || fail "SHA256SUMS has no entry for ${url##*/}."
+actual=$(sha256sum "$file" | cut -d ' ' -f 1)
+[ "$expected" = "$actual" ] || fail "checksum mismatch for ${url##*/}: the download is damaged or incomplete. Nothing was installed."
+echo "Checksum verified"
 chmod 644 "$file"
 chmod 755 "$tmpdir"
 
