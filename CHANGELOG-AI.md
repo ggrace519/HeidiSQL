@@ -4,6 +4,8 @@ Changes of the AI Edition fork. Upstream HeidiSQL changes are listed in [CHANGEL
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-28
+
 ### Added
 - **Linux packages:** releases now include a `.deb` (Debian, Ubuntu) and an `.rpm` (Fedora)
   package named `heidisql-ai`. They install the GTK2 build with a menu entry and a
