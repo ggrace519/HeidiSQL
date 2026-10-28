@@ -1,0 +1,27 @@
+# AI Edition: opens and refreshes the develop -> lazarus promotion pull request after the Lazarus
+# workflow passes on a develop push (shared ggrace519/.github workflow, pinned by commit).
+# Merging it stays a manual decision; use a merge commit, never squash.
+name: promote
+on:
+  workflow_run:
+    workflows: [Lazarus]
+    types: [completed]
+    branches: [develop]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: promote-develop-to-lazarus
+  cancel-in-progress: true
+jobs:
+  promote:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    uses: ggrace519/.github/.github/workflows/promote.yml@56da419a93d4eca7fe1771297dc734fbd9c39fb4 # v1.0.2
+    with:
+      ref: ${{ github.event.workflow_run.head_sha }}
+      base: lazarus
+      merge-note: "Merging releases nothing by itself: a release is published only from an ai-v<version> tag on lazarus (ADR-009)."

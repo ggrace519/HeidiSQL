@@ -119,6 +119,41 @@ their foreign key neighbours are sent with their columns; other tables only by n
 provider's context size. While a query is running, only schema data that is already loaded is
 sent.
 
+## Installing
+
+Releases are for Linux, on the [releases page](https://github.com/ggrace519/HeidiSQL/releases/latest).
+Windows and macOS users build from source (see below).
+
+The easiest way is the package for your distribution (GTK2 build, 64-bit x86), included in
+releases after 0.1.0. It is named `heidisql-ai` and can be installed next to a stock HeidiSQL
+package. The release's install script picks the right one and installs it with apt or dnf:
+
+```sh
+curl -fsSL https://github.com/ggrace519/HeidiSQL/releases/latest/download/install.sh | sh
+```
+
+Or download the package yourself and install it, replacing `<version>`:
+
+```sh
+sudo apt install ./heidisql-ai_<version>-1_amd64.deb     # Debian, Ubuntu
+sudo dnf install ./heidisql-ai-<version>-1.x86_64.rpm    # Fedora
+heidisql-ai
+```
+
+The package also adds "HeidiSQL AI Edition" to the application menu. Database client libraries
+(MariaDB, PostgreSQL, SQLite, FreeTDS, Firebird) are recommended dependencies, which apt and dnf
+install by default.
+
+Archives are available for GTK2, Qt5, Qt6, and Qt6 for ARM64. The archive has no top folder, so
+unpack it into its own folder:
+
+```sh
+mkdir heidisql-ai && tar xzf heidisql-ai_0.1.0_linux_gtk2.tgz -C heidisql-ai
+./heidisql-ai/heidisql
+```
+
+The Qt variants need the Qt5Pas or Qt6Pas library of your distribution.
+
 ## Building
 
 ```sh
@@ -126,8 +161,10 @@ make build-gtk2      # or build-qt5, build-qt6
 ./out/gtk2/heidisql
 ```
 
-Requires Lazarus 4.8 and FreePascal 3.2.2. Do not install the fork with `make deb-package` or
-`make rpm-package` next to a stock HeidiSQL package: both packages install the same files.
+Requires Lazarus 4.8 and FreePascal 3.2.2. To build the `heidisql-ai` packages, run
+`make build-gtk2 packages-ai` (needs [nfpm](https://nfpm.goreleaser.com)); they are written to
+`dist/`. Do not use `make deb-package` or `make rpm-package`: they come from upstream and build a
+package named `heidisql`, which would replace a stock HeidiSQL package.
 
 ## Versioning and releases
 
