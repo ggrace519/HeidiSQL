@@ -38,7 +38,11 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
   `release/next` → `develop` (`extra/release-ai/prepare-release.sh` sets `AIEDITIONVERSION` and dates
   the `CHANGELOG-AI.md` `[Unreleased]` section; tests: `sh extra/release-ai/test-prepare-release.sh`).
   Merge it, then the promotion PR; CI on the `lazarus` push publishes the release and creates the
-  `ai-v<version>` tag when that version is untagged. Never push release tags by hand. After a docs-only promotion (no CI run), `gh workflow run
+  `ai-v<version>` tag when that version is untagged. The release PR shows no checks (made with the workflow token); CI runs on its merge to `develop`
+  and on the promotion PR. Never push release tags by hand. Releases attach `SHA256SUMS` and provenance attestations;
+  `release-verify.yml` then checks the published release and makes it a prerelease if it fails
+  (ADR-012; run it for a tag with `gh workflow run release-verify -f tag=ai-v<version>`; undo a
+  wrong prerelease with `gh release edit <tag> --prerelease=false`). After a docs-only promotion (no CI run), `gh workflow run
   release-pr` opens the release PR. Assets: Linux archives plus
   the `heidisql-ai` .deb/.rpm, which the build job makes on every run, and
   `extra/packaging-ai/install.sh` (the README's one-line install; ADR-010).
@@ -68,6 +72,8 @@ Fork of the HeidiSQL Lazarus/FreePascal port that adds an AI SQL assistant. Read
 - Actions added to `MainForm.ActionList1` after the caption snapshot in `TMainForm.FormCreate`
   (loop filling `FActionList1DefaultCaptions`) break Preferences > Shortcuts.
 - `TDBConnection` is not thread-safe. Read schema data on the main thread.
+- `README.md` is the fork's own page, rewritten from upstream's. When an upstream merge conflicts
+  there, keep ours and port anything still relevant (e.g. a new Lazarus version in Building).
 - Pascal units declare each public routine twice (interface and implementation). Scripted
   find/replace on a signature hits both; anchor such edits to one section.
 - Strings are UTF-8 because LazUTF8 makes UTF-8 the default code page, whatever the system locale.
