@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # Only the shared ggrace519/.github reusable workflows that this fork's own workflows
+  # call. Callers pin them to a release commit SHA, so a new release arrives through the
+  # pull request Dependabot opens here; it bumps the SHA and the version comment together.
+  # Upstream's actions are left alone so that syncing from upstream does not conflict.
+  - package-ecosystem: github-actions
+    directory: /
+    # Explicit rather than "the default branch", so a default-branch change cannot silently
+    # redirect updates onto main.
+    target-branch: develop
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: ggrace519/.github/.github/workflows/promote.yml
+      - dependency-name: ggrace519/.github/.github/workflows/release.yml
+      - dependency-name: ggrace519/.github/.github/workflows/version.yml
+    cooldown:
+      # Our own releases: take them as soon as they are out instead of after the
+      # default 3-day cooldown.
+      exclude:
+        - ggrace519/.github/.github/workflows/promote.yml
+        - ggrace519/.github/.github/workflows/release.yml
+        - ggrace519/.github/.github/workflows/version.yml
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      shared-workflows:
+        patterns: ["*"]
